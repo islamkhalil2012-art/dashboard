@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نظام إدارة بيانات جامعة بنها - النهائي</title>
+    <title>نظام إدارة بيانات جامعة بنها</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -31,7 +31,6 @@
         
         th { background: #1e40af; color: white; padding: 12px; font-weight: 700; text-align: center; border: none; cursor: pointer; transition: background 0.2s; }
         th:hover { background: #2563eb; }
-        th.editable-header:after { content: " ✎"; font-size: 12px; opacity: 0.6; }
         
         td { padding: 10px; text-align: center; border-bottom: 1px solid #eef2f8; }
         td input { width: 90px; padding: 5px; border-radius: 10px; border: 1px solid #cbd5e1; text-align: center; }
@@ -49,7 +48,6 @@
         .toast-message { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #1e40af; color: white; padding: 10px 20px; border-radius: 50px; font-weight: bold; z-index: 1000; animation: fadeInOut 3s ease-in-out forwards; direction: rtl; font-size: 13px; }
         @keyframes fadeInOut { 0% { opacity: 0; transform: translateX(-50%) translateY(20px); } 15% { opacity: 1; transform: translateX(-50%) translateY(0); } 85% { opacity: 1; transform: translateX(-50%) translateY(0); } 100% { opacity: 0; transform: translateX(-50%) translateY(-20px); visibility: hidden; } }
         
-        /* عمود النسبة - الرقم ملون حسب قيمته + شريط تقدم في الخلفية */
         .percent-cell {
             position: relative;
             display: flex;
@@ -78,7 +76,6 @@
             padding: 0 8px;
         }
         
-        /* ألوان الرقم حسب النسبة */
         .percent-text-100 { color: #166534; }
         .percent-text-high { color: #3f6212; }
         .percent-text-mid { color: #854d0e; }
@@ -86,7 +83,6 @@
         .percent-text-low { color: #991b1b; }
         .percent-text-zero { color: #475569; }
         
-        /* ألوان شريط الخلفية حسب النسبة (خفيف) */
         .percent-bg-100 { background: #bbf7d0; }
         .percent-bg-high { background: #d9f99d; }
         .percent-bg-mid { background: #fef08a; }
@@ -97,7 +93,8 @@
         .not-distributed { background: #dbeafe; font-weight: bold; }
         
         .ocr-container { background: #f8fafc; border-radius: 15px; padding: 15px; margin-bottom: 15px; display: none; }
-        .ocr-textarea { width: 100%; height: 150px; margin-top: 10px; padding: 10px; border-radius: 15px; border: 1px solid #ccc; font-family: monospace; }
+        .ocr-textarea { width: 100%; height: 200px; margin-top: 10px; padding: 10px; border-radius: 15px; border: 1px solid #ccc; font-family: monospace; font-size: 12px; }
+        .ocr-buttons { display: flex; gap: 10px; margin-top: 10px; justify-content: center; }
         
         .header-edit-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 2000; }
         .header-edit-box { background: white; border-radius: 20px; padding: 25px; width: 350px; text-align: center; }
@@ -124,7 +121,7 @@
 
     <div class="controls">
         <input type="file" id="uploadExcel" accept=".xlsx, .xls" />
-        <button id="ocrImageBtn" class="btn btn-ocr">رفع صورة</button>
+        <button id="ocrImageBtn" class="btn btn-ocr">رفع صورة واستخراج نص</button>
         <button id="loadSampleBtn" class="btn btn-sample">تحميل بيانات العينة</button>
         <button id="sortByPercentBtn" class="btn btn-sort">ترتيب حسب النسبة</button>
         <button id="refreshBtn" class="btn btn-primary">تحديث الجدول</button>
@@ -140,10 +137,13 @@
     </div>
 
     <div id="ocrContainer" class="ocr-container">
-        <label>النص المستخرج من الصورة (يمكنك تعديله قبل الاستيراد):</label>
-        <textarea id="ocrText" class="ocr-textarea" placeholder="الكلية | عدد الطلاب | عدد المسجلين | المقررات المسجلة | المقررات الموزعة"></textarea>
-        <div style="display:flex; gap:10px; margin-top:10px;">
-            <button id="importOcrDataBtn" class="btn btn-primary">استيراد البيانات</button>
+        <label><strong>تم رفع الصورة</strong> - يرجى كتابة البيانات المستخرجة من الصورة بالصيغة التالية:</label>
+        <label style="display:block; margin-top:8px; font-size:12px; color:#1e40af;">الصيغة: اسم الكلية | عدد الطلاب | عدد المسجلين | المقررات المسجلة | المقررات الموزعة</label>
+        <textarea id="ocrText" class="ocr-textarea" placeholder="مثال:
+كلية الهندسة بشبرا | 181 | 181 | 134 | 134
+كلية التجارة | 11121 | 11118 | 667 | 667"></textarea>
+        <div class="ocr-buttons">
+            <button id="importOcrDataBtn" class="btn btn-primary">استيراد البيانات من النص</button>
             <button id="cancelOcrBtn" class="btn btn-reset">إلغاء</button>
         </div>
     </div>
@@ -161,14 +161,14 @@
             <table id="editableTable">
                 <thead id="tableHeader">
                     <tr>
-                        <th class="editable-header" data-col="0">#</th>
-                        <th class="editable-header" data-col="1">الكلية</th>
-                        <th class="editable-header" data-col="2">عدد الطلاب المسجلين</th>
-                        <th class="editable-header" data-col="3">عدد المسجلين</th>
-                        <th class="editable-header" data-col="4">عدد المقررات المسجلة</th>
-                        <th class="editable-header" data-col="5">عدد المقررات الموزعة</th>
-                        <th class="editable-header" data-col="6">المقررات الغير موزعة</th>
-                        <th class="editable-header" data-col="7">النسبة</th>
+                        <th>#</th>
+                        <th>الكلية</th>
+                        <th>عدد الطلاب المسجلين</th>
+                        <th>عدد المسجلين</th>
+                        <th>عدد المقررات المسجلة</th>
+                        <th>عدد المقررات الموزعة</th>
+                        <th>المقررات الغير موزعة</th>
+                        <th>النسبة</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody"></tbody>
@@ -178,7 +178,7 @@
     </div>
 
     <div class="footer-note">
-        يمكنك تعديل أي خلية ثم الضغط على تحديث الجدول. اضغط مرتين على رأس العمود لتغيير اسمه.
+        يمكنك تعديل أي خلية ثم الضغط على تحديث الجدول.
     </div>
 </div>
 
@@ -205,7 +205,7 @@
 
     let currentData = [];
     let barChart, pieChart;
-    const STORAGE_KEY = 'benha_final_perfect';
+    const STORAGE_KEY = 'benha_final_clean_v2';
     const EXTRACTOR_NAME = "مستخرج البيان: إسلام خليل مصطفى";
     
     let columnHeaders = [
@@ -280,40 +280,11 @@
         if(headerRow) {
             let cells = headerRow.querySelectorAll('th');
             for(let i = 0; i < cells.length && i < columnHeaders.length; i++) {
-                cells[i].innerHTML = columnHeaders[i] + '<span style="font-size:12px; margin-right:6px;">✎</span>';
+                cells[i].innerText = columnHeaders[i];
             }
         }
     }
     
-    function showHeaderEditModal(colIndex) {
-        let modal = document.createElement('div');
-        modal.className = 'header-edit-modal';
-        modal.innerHTML = `
-            <div class="header-edit-box">
-                <h3>تعديل اسم العمود</h3>
-                <input type="text" id="headerNewName" value="${columnHeaders[colIndex].replace(/"/g, '&quot;')}" placeholder="الاسم الجديد">
-                <div>
-                    <button id="saveHeaderBtn" class="btn btn-primary">حفظ</button>
-                    <button id="cancelHeaderBtn" class="btn btn-reset">إلغاء</button>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modal);
-        
-        document.getElementById('saveHeaderBtn').onclick = function() {
-            let newName = document.getElementById('headerNewName').value.trim();
-            if(newName) {
-                columnHeaders[colIndex] = newName;
-                updateHeaderDisplay();
-                saveToLocal();
-                showMessage('تم تغيير اسم العمود بنجاح', '#10b981');
-            }
-            modal.remove();
-        };
-        document.getElementById('cancelHeaderBtn').onclick = function() { modal.remove(); };
-        modal.onclick = function(e) { if(e.target === modal) modal.remove(); };
-    }
-
     function sortByPercent() {
         let sorted = [...currentDataRaw];
         sorted.sort(function(a, b) {
@@ -340,6 +311,7 @@
         updateKPIs();
         updateExtractor();
         saveToLocal();
+        updateCharts();
     }
 
     function renderTable() {
@@ -436,7 +408,6 @@
             '<div class="kpi-card"><div class="kpi-label">غير الموزعة</div><div class="kpi-number">' + formatNumber(sumRegCour - sumDist) + '</div></div>' +
             '<div class="kpi-card"><div class="kpi-label">نسبة التوزيع الكلية</div><div class="kpi-number">' + totalP.toFixed(1) + '%</div></div>';
         updateFooter();
-        updateCharts();
     }
 
     function updateCharts() {
@@ -509,7 +480,7 @@
     function resetData() { loadSampleData(); }
     
     function backupData() {
-        let backup = { version: "7.0", date: new Date().toISOString(), colleges: currentDataRaw, headers: columnHeaders };
+        let backup = { version: "8.0", date: new Date().toISOString(), colleges: currentDataRaw, headers: columnHeaders };
         let jsonStr = JSON.stringify(backup, null, 2);
         let blob = new Blob([jsonStr], {type: 'application/json'});
         let link = document.createElement('a');
@@ -639,106 +610,206 @@
         reader.readAsArrayBuffer(file);
     }
     
-    function openOcrDialog() { document.getElementById('ocrFileInput').click(); }
+    function openOcrDialog() { 
+        document.getElementById('ocrFileInput').click(); 
+    }
     
     function handleOcrImage(file) {
-        showMessage('تم تحميل الصورة، أدخل البيانات يدوياً', '#d97706');
+        showMessage('تم تحميل الصورة: ' + file.name + '. الرجاء إدخال البيانات يدوياً في المربع أدناه', '#d97706');
         document.getElementById('ocrContainer').style.display = 'block';
-        document.getElementById('ocrText').value = 'الكلية | عدد الطلاب | عدد المسجلين | المقررات المسجلة | المقررات الموزعة\n\nكلية الهندسة بشبرا | 181 | 181 | 134 | 134';
+        let sampleText = 'اكتب البيانات هنا بالصيغة التالية:\n\nكلية العلوم | 5567 | 3579 | 508 | 490\nكلية الزراعة | 6124 | 4759 | 290 | 0';
+        document.getElementById('ocrText').value = sampleText;
     }
     
     function importFromOcrText() {
         let text = document.getElementById('ocrText').value;
         let lines = text.split('\n');
-        let newData = []; let idCounter = 1;
+        let newData = []; 
+        let idCounter = 1;
+        
         for(let i = 0; i < lines.length; i++) {
             let line = lines[i].trim();
-            if(line === '' || (line.indexOf('كلية') === -1 && line.indexOf('معهد') === -1)) continue;
+            if(line === '') continue;
+            if(line.indexOf('|') === -1) continue;
+            
             let parts = line.split('|');
             if(parts.length >= 5) {
-                newData.push({
-                    id: idCounter++, name: parts[0].trim(),
-                    students: parseInt(parts[1]) || 0,
-                    registeredStudents: parseInt(parts[2]) || 0,
-                    registeredCourses: parseInt(parts[3]) || 0,
-                    distributed: parseInt(parts[4]) || 0
-                });
+                let name = parts[0].trim();
+                let students = parseInt(parts[1]) || 0;
+                let registeredStudents = parseInt(parts[2]) || 0;
+                let registeredCourses = parseInt(parts[3]) || 0;
+                let distributed = parseInt(parts[4]) || 0;
+                
+                if(name && (name.indexOf('كلية') !== -1 || name.indexOf('معهد') !== -1)) {
+                    newData.push({
+                        id: idCounter++,
+                        name: name,
+                        students: students,
+                        registeredStudents: registeredStudents,
+                        registeredCourses: registeredCourses,
+                        distributed: distributed
+                    });
+                }
             }
         }
-        if(newData.length > 0) { currentDataRaw = newData; refreshData(); document.getElementById('ocrContainer').style.display = 'none'; showMessage('تم استيراد ' + newData.length + ' كلية', '#10b981'); }
-        else showMessage('لم يتم التعرف على البيانات', '#e74c3c');
+        
+        if(newData.length > 0) { 
+            currentDataRaw = newData; 
+            refreshData(); 
+            document.getElementById('ocrContainer').style.display = 'none'; 
+            document.getElementById('ocrText').value = ''; 
+            showMessage('تم استيراد ' + newData.length + ' كلية من النص', '#10b981'); 
+        } else { 
+            showMessage('لم يتم التعرف على البيانات. تأكد من الصيغة: الاسم | الطلاب | المسجلين | المسجلة | الموزعة', '#e74c3c'); 
+        }
     }
     
-    function cancelOcr() { document.getElementById('ocrContainer').style.display = 'none'; document.getElementById('ocrText').value = ''; }
+    function cancelOcr() { 
+        document.getElementById('ocrContainer').style.display = 'none'; 
+        document.getElementById('ocrText').value = ''; 
+    }
     
+    // وظيفة العرض الكامل المبسطة
     function openFullPreview() {
-        let title = document.getElementById('dashboardTitle').innerText;
         let now = new Date();
         let dateStr = now.getDate() + '/' + (now.getMonth()+1) + '/' + now.getFullYear() + ' ' + now.toLocaleTimeString('en-GB', { hour12: false });
-        let previewData = JSON.parse(JSON.stringify(currentData));
-        let headers = JSON.parse(JSON.stringify(columnHeaders));
+        let title = document.getElementById('dashboardTitle').innerText;
         
-        let newWindow = window.open('', '_blank', 'width=1300,height=800,scrollbars=yes,resizable=yes');
-        if(!newWindow) { showMessage('الرجاء السماح بالنوافذ المنبثقة', '#e74c3c'); return; }
+        let previewWindow = window.open('', '_blank', 'width=1300,height=800,scrollbars=yes,resizable=yes');
+        if(!previewWindow) {
+            showMessage('الرجاء السماح بالنوافذ المنبثقة في المتصفح', '#e74c3c');
+            return;
+        }
         
-        let htmlContent = '<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>' + title + '</title>';
-        htmlContent += '<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"><\/script>';
-        htmlContent += '<style>';
-        htmlContent += 'body{font-family:Segoe UI;background:#eef2f5;padding:20px;}';
-        htmlContent += '.preview-container{max-width:1400px;margin:0 auto;background:white;border-radius:24px;padding:25px;}';
-        htmlContent += 'h1{color:#0f2b5e;text-align:center;}';
-        htmlContent += '.info-bar{display:flex;justify-content:space-between;margin:15px 0;padding:12px;background:#f0f4f8;border-radius:15px;flex-wrap:wrap;}';
-        htmlContent += '.info-item{background:#1e3a8a;color:white;padding:5px 15px;border-radius:40px;}';
-        htmlContent += '.info-time{background:#1e293b;color:#facc15;padding:5px 15px;border-radius:40px;}';
-        htmlContent += '.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:15px;margin-bottom:25px;}';
-        htmlContent += '.kpi-card{background:#fff;border-radius:20px;padding:15px;border:1px solid #e2edff;text-align:center;}';
-        htmlContent += '.kpi-number{font-size:32px;font-weight:800;color:#0f2b5e;}';
-        htmlContent += '.charts-row{display:flex;flex-wrap:wrap;gap:25px;margin:20px 0;}';
-        htmlContent += '.chart-box{flex:1;min-width:300px;background:#fff;padding:15px;border-radius:15px;}';
-        htmlContent += 'canvas{max-height:350px;width:100%;}';
-        htmlContent += '.table-wrapper{overflow-x:auto;margin:20px 0;border-radius:20px;border:1px solid #e2e8f0;}';
-        htmlContent += 'table{width:100%;border-collapse:collapse;font-size:13px;min-width:950px;}';
-        htmlContent += 'th{background:#1e40af;color:white;padding:12px;}';
-        htmlContent += 'td{padding:10px;text-align:center;border-bottom:1px solid #eef2f8;}';
-        htmlContent += '.not-distributed{background:#dbeafe;}';
-        htmlContent += '.percent-cell{position:relative;display:flex;align-items:center;justify-content:center;padding:4px 8px;border-radius:30px;background:#f1f5f9;overflow:hidden;}';
-        htmlContent += '.percent-bg-bar{position:absolute;top:0;right:0;height:100%;border-radius:30px;z-index:0;}';
-        htmlContent += '.percent-value{position:relative;z-index:1;font-weight:bold;font-size:13px;background:transparent;padding:0 8px;}';
-        htmlContent += '.percent-text-100{color:#166534;}.percent-text-high{color:#3f6212;}.percent-text-mid{color:#854d0e;}.percent-text-mid-low{color:#9a3412;}.percent-text-low{color:#991b1b;}.percent-text-zero{color:#475569;}';
-        htmlContent += '.percent-bg-100{background:#bbf7d0;}.percent-bg-high{background:#d9f99d;}.percent-bg-mid{background:#fef08a;}.percent-bg-mid-low{background:#fed7aa;}.percent-bg-low{background:#fecaca;}.percent-bg-zero{background:#e2e8f0;}';
-        htmlContent += '<\/style><\/head><body><div class="preview-container">';
-        htmlContent += '<h1>' + title + '</h1>';
-        htmlContent += '<div class="info-bar"><span class="info-item">مستخرج البيان: إسلام خليل مصطفى</span><span class="info-time">' + dateStr + '</span><span class="info-item">جامعة بنها</span></div>';
+        // حساب الإجماليات
+        let sumStu = 0, sumRegStu = 0, sumRegCour = 0, sumDist = 0;
+        for(let i = 0; i < currentData.length; i++) {
+            sumStu += currentData[i].students;
+            sumRegStu += (currentData[i].registeredStudents || 0);
+            sumRegCour += currentData[i].registeredCourses;
+            sumDist += currentData[i].distributed;
+        }
+        let totalP = (sumRegCour === 0) ? 0 : (sumDist / sumRegCour) * 100;
+        let totalNot = sumRegCour - sumDist;
         
-        let sumStu=0, sumRegStu=0, sumRegCour=0, sumDist=0;
-        for(let i=0;i<previewData.length;i++){ sumStu+=previewData[i].students; sumRegStu+=(previewData[i].registeredStudents||0); sumRegCour+=previewData[i].registeredCourses; sumDist+=previewData[i].distributed; }
-        let totalP=(sumRegCour===0)?0:(sumDist/sumRegCour)*100;
-        htmlContent += '<div class="kpi-grid"><div class="kpi-card"><div class="kpi-number">'+sumStu.toLocaleString('en-US')+'</div><div class="kpi-label">اجمالي الطلاب</div></div><div class="kpi-card"><div class="kpi-number">'+sumRegStu.toLocaleString('en-US')+'</div><div class="kpi-label">اجمالي المسجلين</div></div><div class="kpi-card"><div class="kpi-number">'+sumRegCour.toLocaleString('en-US')+'</div><div class="kpi-label">المقررات المسجلة</div></div><div class="kpi-card"><div class="kpi-number">'+sumDist.toLocaleString('en-US')+'</div><div class="kpi-label">المقررات الموزعة</div></div><div class="kpi-card"><div class="kpi-number">'+(sumRegCour-sumDist).toLocaleString('en-US')+'</div><div class="kpi-label">غير الموزعة</div></div><div class="kpi-card"><div class="kpi-number">'+totalP.toFixed(1)+'%</div><div class="kpi-label">نسبة التوزيع</div></div></div>';
+        let html = '<!DOCTYPE html>\n';
+        html += '<html dir="rtl" lang="ar">\n';
+        html += '<head>\n';
+        html += '<meta charset="UTF-8">\n';
+        html += '<title>' + title + '</title>\n';
+        html += '<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"><\/script>\n';
+        html += '<style>\n';
+        html += '*{margin:0;padding:0;box-sizing:border-box;font-family:"Segoe UI",Tahoma,system-ui;}\n';
+        html += 'body{background:#eef2f5;padding:20px;}\n';
+        html += '.container{max-width:1400px;margin:0 auto;background:white;border-radius:24px;padding:25px;}\n';
+        html += 'h1{color:#0f2b5e;text-align:center;margin-bottom:15px;}\n';
+        html += '.info-bar{display:flex;justify-content:space-between;margin-bottom:25px;padding:12px;background:#f0f4f8;border-radius:15px;flex-wrap:wrap;gap:10px;}\n';
+        html += '.info-item{background:#1e3a8a;color:white;padding:6px 18px;border-radius:40px;}\n';
+        html += '.info-time{background:#1e293b;color:#facc15;padding:6px 18px;border-radius:40px;}\n';
+        html += '.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:15px;margin-bottom:25px;}\n';
+        html += '.kpi-card{background:#fff;border-radius:20px;padding:15px;border:1px solid #e2edff;text-align:center;}\n';
+        html += '.kpi-number{font-size:32px;font-weight:800;color:#0f2b5e;}\n';
+        html += '.kpi-label{font-size:13px;color:#4a5b7a;}\n';
+        html += '.charts-row{display:flex;flex-wrap:wrap;gap:25px;margin:20px 0;}\n';
+        html += '.chart-box{flex:1;min-width:300px;background:#fff;padding:15px;border-radius:15px;border:1px solid #eef2f8;}\n';
+        html += '.chart-box h3{margin-bottom:15px;}\n';
+        html += 'canvas{max-height:350px;width:100%;}\n';
+        html += '.table-wrapper{overflow-x:auto;margin:20px 0;border-radius:20px;border:1px solid #e2e8f0;}\n';
+        html += 'table{width:100%;border-collapse:collapse;font-size:13px;min-width:950px;}\n';
+        html += 'th{background:#1e40af;color:white;padding:12px;}\n';
+        html += 'td{padding:10px;text-align:center;border-bottom:1px solid #eef2f8;}\n';
+        html += '.not-dist{background:#dbeafe;font-weight:bold;}\n';
+        html += '.percent-cell{position:relative;display:flex;align-items:center;justify-content:center;padding:4px 8px;border-radius:30px;background:#f1f5f9;overflow:hidden;}\n';
+        html += '.percent-bg{position:absolute;top:0;right:0;height:100%;border-radius:30px;z-index:0;}\n';
+        html += '.percent-val{position:relative;z-index:1;font-weight:bold;font-size:13px;padding:0 8px;}\n';
+        html += '.text-100{color:#166534;}.text-high{color:#3f6212;}.text-mid{color:#854d0e;}.text-mid-low{color:#9a3412;}.text-low{color:#991b1b;}.text-zero{color:#475569;}\n';
+        html += '.bg-100{background:#bbf7d0;}.bg-high{background:#d9f99d;}.bg-mid{background:#fef08a;}.bg-mid-low{background:#fed7aa;}.bg-low{background:#fecaca;}.bg-zero{background:#e2e8f0;}\n';
+        html += '.footer{text-align:center;font-size:11px;color:#5b6e8c;margin-top:20px;padding-top:15px;border-top:1px solid #e2e8f0;}\n';
+        html += '<\/style>\n';
+        html += '<\/head>\n';
+        html += '<body>\n';
+        html += '<div class="container">\n';
+        html += '<h1>' + title + '</h1>\n';
+        html += '<div class="info-bar">\n';
+        html += '<span class="info-item">مستخرج البيان: إسلام خليل مصطفى</span>\n';
+        html += '<span class="info-time">وقت الاستخراج: ' + dateStr + '</span>\n';
+        html += '<span class="info-item">جامعة بنها</span>\n';
+        html += '</div>\n';
         
-        htmlContent += '<div class="charts-row"><div class="chart-box"><canvas id="barPreview"></canvas></div><div class="chart-box"><canvas id="piePreview"></canvas></div></div>';
+        // KPIs
+        html += '<div class="kpi-grid">\n';
+        html += '<div class="kpi-card"><div class="kpi-number">' + sumStu.toLocaleString('en-US') + '</div><div class="kpi-label">اجمالي عدد الطلاب</div></div>\n';
+        html += '<div class="kpi-card"><div class="kpi-number">' + sumRegStu.toLocaleString('en-US') + '</div><div class="kpi-label">اجمالي عدد المسجلين</div></div>\n';
+        html += '<div class="kpi-card"><div class="kpi-number">' + sumRegCour.toLocaleString('en-US') + '</div><div class="kpi-label">اجمالي المقررات المسجلة</div></div>\n';
+        html += '<div class="kpi-card"><div class="kpi-number">' + sumDist.toLocaleString('en-US') + '</div><div class="kpi-label">المقررات الموزعة</div></div>\n';
+        html += '<div class="kpi-card"><div class="kpi-number">' + totalNot.toLocaleString('en-US') + '</div><div class="kpi-label">غير الموزعة</div></div>\n';
+        html += '<div class="kpi-card"><div class="kpi-number">' + totalP.toFixed(1) + '%</div><div class="kpi-label">نسبة التوزيع الكلية</div></div>\n';
+        html += '</div>\n';
         
-        htmlContent += '<div class="table-wrapper"><table><thead><tr>';
-        for(let i=0;i<headers.length;i++) htmlContent += '<th>'+headers[i]+'</th>';
-        htmlContent += '<tr></thead><tbody id="previewBody"></tbody><tfoot id="previewFooter"></tfoot></table></div>';
-        htmlContent += '</div><script>';
-        htmlContent += 'var data='+JSON.stringify(previewData)+';';
-        htmlContent += 'function fmt(n){return n.toLocaleString("en-US");}';
-        htmlContent += 'function getP(item){return item.registeredCourses===0?0:(item.distributed/item.registeredCourses)*100;}';
-        htmlContent += 'function getTextClass(p){if(p>=100)return"percent-text-100";if(p>=75)return"percent-text-high";if(p>=50)return"percent-text-mid";if(p>=25)return"percent-text-mid-low";if(p>=1)return"percent-text-low";return"percent-text-zero";}';
-        htmlContent += 'function getBgClass(p){if(p>=100)return"percent-bg-100";if(p>=75)return"percent-bg-high";if(p>=50)return"percent-bg-mid";if(p>=25)return"percent-bg-mid-low";if(p>=1)return"percent-bg-low";return"percent-bg-zero";}';
-        htmlContent += 'var body=document.getElementById("previewBody");';
-        htmlContent += 'for(var i=0;i<data.length;i++){var p=getP(data[i]);var textClass=getTextClass(p);var bgClass=getBgClass(p);var notDist=data[i].registeredCourses-data[i].distributed;var pw=Math.min(p,100);';
-        htmlContent += 'body.insertAdjacentHTML("beforeend","<td><td style=\"text-align:center;\">"+(i+1)+"</td><td style=\"text-align:right;\">"+data[i].name+"</td><td style=\"text-align:center;\">"+fmt(data[i].students)+"</td><td style=\"text-align:center;\">"+fmt(data[i].registeredStudents||0)+"</td><td style=\"text-align:center;\">"+fmt(data[i].registeredCourses)+"<td>"+fmt(data[i].distributed)+"<td><td class=\"not-distributed\">"+fmt(notDist)+"</td><td><div class=\"percent-cell\"><div class=\"percent-bg-bar "+bgClass+"\" style=\"width:"+pw+"%;\"></div><span class=\"percent-value "+textClass+"\">"+p.toFixed(1)+"%</span></div></td></tr>");}';
-        htmlContent += 'var tStu='+sumStu+',tRegStu='+sumRegStu+',tRegCour='+sumRegCour+',tDist='+sumDist+',tNot='+(sumRegCour-sumDist)+',tP='+totalP+';var tTextClass=getTextClass(tP);var tBgClass=getBgClass(tP);var tpw=Math.min(tP,100);';
-        htmlContent += 'document.getElementById("previewFooter").innerHTML="<tr><td colspan=\"2\"><strong>الإجمالي</strong></td><td><strong>"+fmt(tStu)+"</strong></td><td><strong>"+fmt(tRegStu)+"</strong></td><td><strong>"+fmt(tRegCour)+"</strong></td><td><strong>"+fmt(tDist)+"</strong></td><td class=\"not-distributed\"><strong>"+fmt(tNot)+"</strong></td><td><div class=\"percent-cell\"><div class=\"percent-bg-bar "+tBgClass+"\" style=\"width:"+tpw+"%;\"></div><span class=\"percent-value "+tTextClass+"\">"+tP.toFixed(1)+"%</span></div></td></tr>";';
-        htmlContent += 'var sorted=[...data].sort(function(a,b){return b.registeredCourses - a.registeredCourses;});';
-        htmlContent += 'new Chart(document.getElementById("barPreview"),{type:"bar",data:{labels:sorted.map(function(c){return c.name;}),datasets:[{label:"المقررات المسجلة",data:sorted.map(function(c){return c.registeredCourses;}),backgroundColor:"#3b82f6"},{label:"المقررات الموزعة",data:sorted.map(function(c){return c.distributed;}),backgroundColor:"#f97316"}]},options:{responsive:true,plugins:{legend:{position:"top"}},scales:{y:{beginAtZero:true}}}});';
-        htmlContent += 'var nonZero=data.filter(function(c){return c.distributed>0;});var pieLabs=[],pieVals=[];if(nonZero.length===0){pieLabs=["لا توجد مقررات موزعة"];pieVals=[100];}else{var totalD=0;for(var i=0;i<data.length;i++)totalD+=data[i].distributed;for(var i=0;i<nonZero.length;i++){var perc=((nonZero[i].distributed/totalD)*100).toFixed(1);pieLabs.push(nonZero[i].name+" ("+perc+"%)");pieVals.push(nonZero[i].distributed);}}';
-        htmlContent += 'new Chart(document.getElementById("piePreview"),{type:"pie",data:{labels:pieLabs,datasets:[{data:pieVals,backgroundColor:["#2563eb","#f97316","#10b981","#8b5cf6","#f43f5e","#06b6d4","#a855f7"]}]},options:{responsive:true,plugins:{legend:{position:"right"}}}});';
-        htmlContent += '<\/script><\/body><\/html>';
+        // مكان للرسوم البيانية
+        html += '<div class="charts-row">\n';
+        html += '<div class="chart-box"><h3>مقارنة المقررات المسجلة والموزعة</h3><canvas id="barChartPreview"></canvas></div>\n';
+        html += '<div class="chart-box"><h3>نسبة توزيع المقررات على الكليات</h3><canvas id="pieChartPreview"></canvas></div>\n';
+        html += '</div>\n';
         
-        newWindow.document.write(htmlContent);
-        newWindow.document.close();
+        // الجدول
+        html += '<div class="table-wrapper">\n';
+        html += '<table>\n';
+        html += '<thead><tr>';
+        for(let i = 0; i < columnHeaders.length; i++) {
+            html += '<th>' + columnHeaders[i] + '</th>';
+        }
+        html += '</tr></thead>\n';
+        html += '<tbody id="previewBody"></tbody>\n';
+        html += '<tfoot id="previewFoot"></tfoot>\n';
+        html += '</table>\n';
+        html += '</div>\n';
+        
+        html += '<div class="footer">* غير الموزعة = المقررات المسجلة - المقررات الموزعة</div>\n';
+        html += '</div>\n';
+        
+        html += '<script>\n';
+        html += 'var data = ' + JSON.stringify(currentData) + ';\n';
+        html += 'var headers = ' + JSON.stringify(columnHeaders) + ';\n';
+        html += 'function fmt(n){return n.toLocaleString("en-US");}\n';
+        html += 'function getP(item){return item.registeredCourses===0?0:(item.distributed/item.registeredCourses)*100;}\n';
+        html += 'function getTextClass(p){if(p>=100)return"text-100";if(p>=75)return"text-high";if(p>=50)return"text-mid";if(p>=25)return"text-mid-low";if(p>=1)return"text-low";return"text-zero";}\n';
+        html += 'function getBgClass(p){if(p>=100)return"bg-100";if(p>=75)return"bg-high";if(p>=50)return"bg-mid";if(p>=25)return"bg-mid-low";if(p>=1)return"bg-low";return"bg-zero";}\n';
+        
+        html += 'var tbody = document.getElementById("previewBody");\n';
+        html += 'for(var i=0;i<data.length;i++){\n';
+        html += 'var c=data[i];\n';
+        html += 'var p=getP(c);\n';
+        html += 'var tc=getTextClass(p);\n';
+        html += 'var bc=getBgClass(p);\n';
+        html += 'var notDist=c.registeredCourses-c.distributed;\n';
+        html += 'var pw=Math.min(p,100);\n';
+        html += 'tbody.insertAdjacentHTML("beforeend","<tr><td style=\"text-align:center;\">"+(i+1)+"</td><td style=\"text-align:right;\">"+c.name+"</td>"+fmt(c.students)+"</td>"+fmt(c.registeredStudents||0)+"</td>"+fmt(c.registeredCourses)+"</td>"+fmt(c.distributed)+"</td><td class=\"not-dist\">"+fmt(notDist)+"</td><td><div class=\"percent-cell\"><div class=\"percent-bg '+bc+'\" style=\"width:"+pw+"%;\"></div><span class=\"percent-val '+tc+'\">"+p.toFixed(1)+"%</span></div></td></tr>");\n';
+        html += '}\n';
+        
+        html += 'var sumStu=' + sumStu + ',sumRegStu=' + sumRegStu + ',sumRegCour=' + sumRegCour + ',sumDist=' + sumDist + ',totalNot=' + totalNot + ',totalP=' + totalP + ';\n';
+        html += 'var totalTextClass=getTextClass(totalP);\n';
+        html += 'var totalBgClass=getBgClass(totalP);\n';
+        html += 'var totalPw=Math.min(totalP,100);\n';
+        html += 'document.getElementById("previewFoot").innerHTML="<tr><td colspan=\"2\"><strong>الإجمالي</strong></td><td><strong>"+fmt(sumStu)+"</strong></td><td><strong>"+fmt(sumRegStu)+"</strong></td><td><strong>"+fmt(sumRegCour)+"</strong></td><td><strong>"+fmt(sumDist)+"</strong></td><td class=\"not-dist\"><strong>"+fmt(totalNot)+"</strong></td><td><div class=\"percent-cell\"><div class=\"percent-bg '+totalBgClass+'\" style=\"width:"+totalPw+"%;\"></div><span class=\"percent-val '+totalTextClass+'\">"+totalP.toFixed(1)+"%</span></div></td></tr>";\n';
+        
+        html += 'var sorted = [...data].sort(function(a,b){return b.registeredCourses - a.registeredCourses;});\n';
+        html += 'var barCtx = document.getElementById("barChartPreview").getContext("2d");\n';
+        html += 'new Chart(barCtx,{type:"bar",data:{labels:sorted.map(function(c){return c.name;}),datasets:[{label:"المقررات المسجلة",data:sorted.map(function(c){return c.registeredCourses;}),backgroundColor:"#3b82f6"},{label:"المقررات الموزعة",data:sorted.map(function(c){return c.distributed;}),backgroundColor:"#f97316"}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{position:"top"},tooltip:{callbacks:{label:function(ctx){return ctx.dataset.label+": "+ctx.raw.toLocaleString("en-US");}}}},scales:{y:{beginAtZero:true,ticks:{callback:function(val){return val.toLocaleString("en-US");}}}}}});\n';
+        
+        html += 'var nonZero = data.filter(function(c){return c.distributed>0;});\n';
+        html += 'var pieLabels=[],pieValues=[];\n';
+        html += 'if(nonZero.length===0){pieLabels=["لا توجد مقررات موزعة"];pieValues=[100];}\n';
+        html += 'else{var totalD=0;for(var i=0;i<data.length;i++)totalD+=data[i].distributed;for(var i=0;i<nonZero.length;i++){var perc=((nonZero[i].distributed/totalD)*100).toFixed(1);pieLabels.push(nonZero[i].name+" ("+perc+"%)");pieValues.push(nonZero[i].distributed);}}\n';
+        html += 'var pieCtx = document.getElementById("pieChartPreview").getContext("2d");\n';
+        html += 'new Chart(pieCtx,{type:"pie",data:{labels:pieLabels,datasets:[{data:pieValues,backgroundColor:["#2563eb","#f97316","#10b981","#8b5cf6","#f43f5e","#06b6d4","#a855f7"]}]},options:{responsive:true,plugins:{legend:{position:"right",labels:{font:{size:10}}},tooltip:{callbacks:{label:function(ctx){var total=ctx.dataset.data.reduce(function(a,b){return a+b;},0);var perc=((ctx.raw/total)*100).toFixed(1);return ctx.label+": "+ctx.raw+" مقرر ("+perc+"%)";}}}}}});\n';
+        
+        html += '<\/script>\n';
+        html += '<\/body>\n';
+        html += '<\/html>';
+        
+        previewWindow.document.write(html);
+        previewWindow.document.close();
         showMessage('تم فتح نافذة العرض الكامل', '#d97706');
     }
 
@@ -754,15 +825,6 @@
         let d = now.getDate(), m = now.getMonth()+1, y = now.getFullYear();
         let t = now.toLocaleTimeString('en-GB', { hour12: false });
         document.getElementById('extractorDynamic').innerHTML = EXTRACTOR_NAME + ' | ' + d + '/' + m + '/' + y + ' - ' + t;
-    }
-
-    function initHeaderEditors() {
-        let headers = document.querySelectorAll('#tableHeader th');
-        for(let i = 0; i < headers.length; i++) {
-            headers[i].ondblclick = (function(index) {
-                return function() { showHeaderEditModal(index); };
-            })(i);
-        }
     }
 
     document.getElementById('refreshBtn').addEventListener('click', syncFromInputs);
@@ -785,10 +847,9 @@
     if(!loadFromLocal()) saveToLocal();
     refreshData();
     updateHeaderDisplay();
-    initHeaderEditors();
     updateClock();
     setInterval(updateClock, 1000);
-    showMessage('عمود النسبة: الرقم الملون + شريط تقدم في الخلفية', '#1e40af');
+    showMessage('النظام جاهز', '#1e40af');
 })();
 </script>
 </body>
