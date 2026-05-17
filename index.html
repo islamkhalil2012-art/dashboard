@@ -37,19 +37,6 @@
         .extractor{font-size:12px;background:#eef2ff;padding:4px 12px;border-radius:40px;display:inline-block;}
         .toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#1e40af;color:white;padding:10px 20px;border-radius:50px;z-index:1000;animation:fade 3s forwards;}
         @keyframes fade{0%{opacity:0;}15%{opacity:1;}85%{opacity:1;}100%{opacity:0;visibility:hidden;}}
-        .percent-cell{display:flex;align-items:center;justify-content:center;gap:8px;padding:4px 8px;border-radius:30px;background:#f1f5f9;}
-        .progress-bar{flex:1;height:10px;background:#cbd5e1;border-radius:20px;overflow:hidden;}
-        .progress-fill{height:100%;border-radius:20px;transition:width 0.3s;}
-        .text-green{color:#166534;}
-        .text-yellow{color:#854d0e;}
-        .text-orange{color:#9a3412;}
-        .text-red{color:#991b1b;}
-        .text-gray{color:#475569;}
-        .bg-green{background:#bbf7d0;}
-        .bg-yellow{background:#fef08a;}
-        .bg-orange{background:#fed7aa;}
-        .bg-red{background:#fecaca;}
-        .bg-gray{background:#e2e8f0;}
         .not-dist{background:#dbeafe;font-weight:bold;}
         .table-wrapper{overflow-x:auto;margin:20px 0;border-radius:20px;border:1px solid #e2e8f0;}
         .ocr-box{background:#f8fafc;border-radius:15px;padding:15px;margin-bottom:15px;display:none;}
@@ -57,6 +44,54 @@
         .modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:2000;}
         .modal-box{background:white;border-radius:20px;padding:25px;width:350px;text-align:center;}
         .modal-box input{width:100%;padding:10px;margin:15px 0;border-radius:12px;border:1px solid #ccc;}
+        
+        /* تنسيق خلية النسبة - شريط تقدم مثل الصورة */
+        .percent-wrapper {
+            position: relative;
+            width: 100%;
+            min-width: 140px;
+            display: inline-block;
+        }
+        .percent-bar-bg {
+            background-color: #e2e8f0;
+            border-radius: 30px;
+            height: 32px;
+            width: 100%;
+            overflow: hidden;
+            position: relative;
+        }
+        .percent-bar-fill {
+            height: 100%;
+            border-radius: 30px;
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 10px;
+        }
+        .percent-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-weight: bold;
+            font-size: 13px;
+            white-space: nowrap;
+            z-index: 2;
+            color: white;
+            text-shadow: 0 0 2px rgba(0,0,0,0.3);
+        }
+        
+        /* ألوان شريط التقدم حسب النسبة */
+        .fill-100 { background: linear-gradient(90deg, #22c55e, #16a34a); width: 100%; }
+        .fill-high { background: linear-gradient(90deg, #a3e635, #84cc16); }
+        .fill-mid { background: linear-gradient(90deg, #eab308, #ca8a04); }
+        .fill-low { background: linear-gradient(90deg, #f97316, #ea580c); }
+        .fill-very-low { background: linear-gradient(90deg, #ef4444, #dc2626); }
+        .fill-zero { background: #94a3b8; }
+        
+        .text-white { color: white; }
+        .text-dark { color: #1e293b; }
     </style>
 </head>
 <body>
@@ -108,7 +143,7 @@
     <div class="table-wrapper">
         <table id="dataTable">
             <thead id="tableHead">
-                <tr><th data-col="0">#</th><th data-col="1">الكلية</th><th data-col="2">عدد الطلاب</th><th data-col="3">عدد المسجلين</th><th data-col="4">المقررات المسجلة</th><th data-col="5">المقررات الموزعة</th><th data-col="6">غير الموزعة</th><th data-col="7">النسبة</th></tr>
+                <tr><th>#</th><th>الكلية</th><th>عدد الطلاب</th><th>عدد المسجلين</th><th>المقررات المسجلة</th><th>المقررات الموزعة</th><th>غير الموزعة</th><th>نسبة التوزيع</th></tr>
             </thead>
             <tbody id="tableBody"></tbody>
             <tfoot id="tableFoot"></tfoot>
@@ -140,28 +175,26 @@
     ];
 
     let currentData = [];
-    let headers = ["#", "الكلية", "عدد الطلاب", "عدد المسجلين", "المقررات المسجلة", "المقررات الموزعة", "غير الموزعة", "النسبة"];
+    let headers = ["#", "الكلية", "عدد الطلاب", "عدد المسجلين", "المقررات المسجلة", "المقررات الموزعة", "غير الموزعة", "نسبة التوزيع"];
     let barChart, pieChart;
-    const STORAGE_KEY = "benha_simple";
+    const STORAGE_KEY = "benha_progress_bar";
 
     function formatNum(n){ return n.toLocaleString('en-US'); }
     
     function getPercent(item){ return item.regCourses===0 ? 0 : (item.distributed / item.regCourses)*100; }
     
-    function getColorClass(percent){
-        if(percent>=100) return "text-green";
-        if(percent>=75) return "text-yellow";
-        if(percent>=50) return "text-orange";
-        if(percent>=1) return "text-red";
-        return "text-gray";
+    function getFillClass(percent){
+        if(percent >= 100) return "fill-100";
+        if(percent >= 80) return "fill-high";
+        if(percent >= 60) return "fill-mid";
+        if(percent >= 30) return "fill-low";
+        if(percent >= 1) return "fill-very-low";
+        return "fill-zero";
     }
     
-    function getBgClass(percent){
-        if(percent>=100) return "bg-green";
-        if(percent>=75) return "bg-yellow";
-        if(percent>=50) return "bg-orange";
-        if(percent>=1) return "bg-red";
-        return "bg-gray";
+    function getTextColor(percent){
+        if(percent >= 60) return "text-white";
+        return "text-dark";
     }
 
     function showMessage(msg, color){
@@ -244,18 +277,19 @@
             let row = currentData[i];
             let percent = getPercent(row);
             let notDist = row.regCourses - row.distributed;
-            let textClass = getColorClass(percent);
-            let bgClass = getBgClass(percent);
-            let progressWidth = Math.min(percent,100);
+            let fillClass = getFillClass(percent);
+            let textColor = getTextColor(percent);
+            let progressWidth = Math.min(percent, 100);
+            
             let tr = document.createElement('tr');
-            tr.innerHTML = '<td>'+row.id+'</td>' +
-                '<td class="college-name"><input type="text" class="nameInp" value="'+row.name.replace(/"/g,'&quot;')+'" data-id="'+row.id+'"></td>' +
-                '<td><input type="number" class="stuInp" value="'+row.students+'" data-id="'+row.id+'"></td>' +
-                '<td><input type="number" class="regStuInp" value="'+row.regStudents+'" data-id="'+row.id+'"></td>' +
-                '<td><input type="number" class="regCourInp" value="'+row.regCourses+'" data-id="'+row.id+'"></td>' +
-                '<td><input type="number" class="distInp" value="'+row.distributed+'" data-id="'+row.id+'"></td>' +
-                '<td class="not-dist">'+formatNum(notDist)+'</td>' +
-                '<td><div class="percent-cell '+bgClass+'"><span class="'+textClass+'">'+percent.toFixed(1)+'%</span><div class="progress-bar"><div class="progress-fill" style="width:'+progressWidth+'%; background:#475569;"></div></div></div></td>';
+            tr.innerHTML = '<td>' + row.id + '</td>' +
+                '<td class="college-name"><input type="text" class="nameInp" value="' + row.name.replace(/"/g,'&quot;') + '" data-id="' + row.id + '"></td>' +
+                '<td><input type="number" class="stuInp" value="' + row.students + '" data-id="' + row.id + '"></td>' +
+                '<td><input type="number" class="regStuInp" value="' + row.regStudents + '" data-id="' + row.id + '"></td>' +
+                '<td><input type="number" class="regCourInp" value="' + row.regCourses + '" data-id="' + row.id + '"></td>' +
+                '<td><input type="number" class="distInp" value="' + row.distributed + '" data-id="' + row.id + '"></td>' +
+                '<td class="not-dist">' + formatNum(notDist) + '</td>' +
+                '<td><div class="percent-wrapper"><div class="percent-bar-bg"><div class="percent-bar-fill ' + fillClass + '" style="width:' + progressWidth + '%;"></div></div><span class="percent-text ' + textColor + '">' + percent.toFixed(1) + '%</span></div></td>';
             tbody.appendChild(tr);
         }
         updateFooter();
@@ -272,11 +306,12 @@
             sumNot += (c.regCourses - c.distributed);
         }
         let totalP = (sumRegCour===0) ? 0 : (sumDist/sumRegCour)*100;
-        let textClass = getColorClass(totalP);
-        let bgClass = getBgClass(totalP);
-        let pw = Math.min(totalP,100);
+        let fillClass = getFillClass(totalP);
+        let textColor = getTextColor(totalP);
+        let progressWidth = Math.min(totalP, 100);
+        
         let footer = document.getElementById('tableFoot');
-        footer.innerHTML = '<tr><td colspan="2"><strong>الإجمالي</strong></td><td><strong>'+formatNum(sumStu)+'</strong></td><td><strong>'+formatNum(sumRegStu)+'</strong></td><td><strong>'+formatNum(sumRegCour)+'</strong></td><td><strong>'+formatNum(sumDist)+'</strong></td><td class="not-dist"><strong>'+formatNum(sumNot)+'</strong></td><td><div class="percent-cell '+bgClass+'"><span class="'+textClass+'">'+totalP.toFixed(1)+'%</span><div class="progress-bar"><div class="progress-fill" style="width:'+pw+'%; background:#475569;"></div></div></div></td></tr>';
+        footer.innerHTML = '<tr><td colspan="2"><strong>الإجمالي</strong>ｻ<td><strong>' + formatNum(sumStu) + '</strong>ｻ<td><strong>' + formatNum(sumRegStu) + '</strong>ｻ<td><strong>' + formatNum(sumRegCour) + '</strong>ｻ<td><strong>' + formatNum(sumDist) + '</strong>ｻ<td class="not-dist"><strong>' + formatNum(sumNot) + '</strong>ｻ<td><div class="percent-wrapper"><div class="percent-bar-bg"><div class="percent-bar-fill ' + fillClass + '" style="width:' + progressWidth + '%;"></div></div><span class="percent-text ' + textColor + '">' + totalP.toFixed(1) + '%</span></div>ｻ<tr>';
     }
 
     function syncInputs(){
@@ -397,7 +432,6 @@
         let now = new Date();
         let dateStr = now.getDate()+'/'+(now.getMonth()+1)+'/'+now.getFullYear()+' '+now.toLocaleTimeString('en-GB',{hour12:false});
         let title = document.getElementById('titleText').innerText;
-        let tableSection = document.getElementById('tableSection') ? document.getElementById('tableSection') : document.querySelector('.table-wrapper').parentNode;
         let clone = document.querySelector('.table-wrapper').cloneNode(true);
         let headerDiv = document.createElement('div');
         headerDiv.style.cssText = 'text-align:center; margin-bottom:20px; padding:15px; background:#f0f4f8; border-radius:15px;';
@@ -533,7 +567,7 @@
     updateHeadersDisplay();
     updateClock();
     setInterval(updateClock, 1000);
-    showMessage('اضغط مرتين على رأس العمود لتغيير اسمه', '#1e40af');
+    showMessage('عمود النسبة على شكل شريط تقدم ملون', '#1e40af');
 })();
 </script>
 </body>
