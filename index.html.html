@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام إدارة بيانات جامعة بنها</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, system-ui; }
+        body { background: #eef2f5; padding: 20px; }
+        .dashboard-container { max-width: 1600px; margin: 0 auto; background: white; border-radius: 32px; padding: 24px 28px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
+        .header { border-bottom: 3px solid #1e40af; margin-bottom: 20px; padding-bottom: 15px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
+        .title { font-size: 28px; font-weight: 800; color: #0f2b5e; background: #fef9e3; padding: 5px 15px; border-radius: 50px; cursor: text; }
+        .uni-badge { background: #1e3a8a; color: white; padding: 6px 18px; border-radius: 40px; font-size: 14px; }
+        .controls { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 25px; background: #f8fafc; padding: 15px; border-radius: 28px; align-items: center; border: 1px solid #e2e8f0; }
+        .btn { padding: 8px 16px; border-radius: 40px; border: none; cursor: pointer; font-weight: bold; font-size: 13px; }
+        .btn-primary { background: #1e40af; color: white; }
+        .btn-excel { background: #10b981; color: white; }
+        .btn-reset { background: #475569; color: white; }
+        .btn-sample { background: #0f5b8a; color: white; }
+        .btn-image { background: #8b5cf6; color: white; }
+        .btn-backup { background: #9b59b6; color: white; }
+        .btn-table-img { background: #0891b2; color: white; }
+        .btn-preview { background: #d97706; color: white; font-weight: bold; }
+        .btn-sort { background: #2c3e66; color: white; }
+        .btn-ocr { background: #0f5b8a; color: white; }
+        .editable-table-wrapper { overflow-x: auto; margin: 25px 0 20px 0; border-radius: 24px; border: 1px solid #e2e8f0; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 1000px; }
+        
+        th { background: #1e40af; color: white; padding: 12px; font-weight: 700; text-align: center; border: none; cursor: pointer; transition: background 0.2s; }
+        th:hover { background: #2563eb; }
+        
+        td { padding: 10px; text-align: center; border-bottom: 1px solid #eef2f8; }
+        td input { width: 90px; padding: 5px; border-radius: 10px; border: 1px solid #cbd5e1; text-align: center; }
+        .college-name input { width: 200px; }
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px,1fr)); gap: 15px; margin-bottom: 25px; }
+        .kpi-card { background: #fff; border-radius: 20px; padding: 15px; border: 1px solid #e2edff; }
+        .kpi-number { font-size: 32px; font-weight: 800; color: #0f2b5e; font-family: monospace; }
+        .kpi-label { font-size: 13px; color: #4a5b7a; }
+        .charts-row { display: flex; flex-wrap: wrap; gap: 25px; margin: 10px 0 0 0; }
+        .chart-box { flex: 1; min-width: 300px; background: transparent; padding: 0; border: none; }
+        canvas { max-height: 400px; width: 100%; border: none; }
+        .footer-note { text-align: center; font-size: 11px; color: #5b6e8c; margin-top: 20px; }
+        .live-clock { background: #1e293b; color: #facc15; padding: 4px 12px; border-radius: 40px; font-family: monospace; font-size: 13px; display: inline-block; direction: ltr; }
+        .extractor-header { font-size: 12px; background: #eef2ff; padding: 4px 12px; border-radius: 40px; display: inline-block; }
+        .toast-message { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #1e40af; color: white; padding: 10px 20px; border-radius: 50px; font-weight: bold; z-index: 1000; animation: fadeInOut 3s ease-in-out forwards; direction: rtl; font-size: 13px; }
+        @keyframes fadeInOut { 0% { opacity: 0; transform: translateX(-50%) translateY(20px); } 15% { opacity: 1; transform: translateX(-50%) translateY(0); } 85% { opacity: 1; transform: translateX(-50%) translateY(0); } 100% { opacity: 0; transform: translateX(-50%) translateY(-20px); visibility: hidden; } }
+        
+        .percent-cell {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px 8px;
+            border-radius: 30px;
+            background: #f1f5f9;
+            overflow: hidden;
+        }
+        .percent-bg-bar {
+            position: absolute;
+            top: 0;
+            right: 0;
+            height: 100%;
+            border-radius: 30px;
+            z-index: 0;
+            transition: width 0.5s ease-out;
+        }
+        .percent-value {
+            position: relative;
+            z-index: 1;
+            font-weight: bold;
+            font-size: 13px;
+            background: transparent;
+            padding: 0 8px;
+        }
+        
+        .percent-text-100 { color: #166534; }
+        .percent-text-high { color: #3f6212; }
+        .percent-text-mid { color: #854d0e; }
+        .percent-text-mid-low { color: #9a3412; }
+        .percent-text-low { color: #991b1b; }
+        .percent-text-zero { color: #475569; }
+        
+        .percent-bg-100 { background: #bbf7d0; }
+        .percent-bg-high { background: #d9f99d; }
+        .percent-bg-mid { background: #fef08a; }
+        .percent-bg-mid-low { background: #fed7aa; }
+        .percent-bg-low { background: #fecaca; }
+        .percent-bg-zero { background: #e2e8f0; }
+        
+        .not-distributed { background: #dbeafe; font-weight: bold; }
+        
+        .ocr-container { background: #f8fafc; border-radius: 15px; padding: 15px; margin-bottom: 15px; display: none; }
+        .ocr-textarea { width: 100%; height: 200px; margin-top: 10px; padding: 10px; border-radius: 15px; border: 1px solid #ccc; font-family: monospace; font-size: 12px; }
+        .ocr-buttons { display: flex; gap: 10px; margin-top: 10px; justify-content: center; }
+        
+        .header-edit-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 2000; }
+        .header-edit-box { background: white; border-radius: 20px; padding: 25px; width: 350px; text-align: center; }
+        .header-edit-box input { width: 100%; padding: 10px; margin: 15px 0; border-radius: 12px; border: 1px solid #ccc; font-size: 14px; }
+        .header-edit-box button { margin: 5px; padding: 8px 20px; border-radius: 30px; border: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+<div class="dashboard-container" id="editorContainer">
+    <div class="header">
+        <div class="title" contenteditable="true" id="dashboardTitle">إحصائية عدد المقررات الموزعة على اللجان الإمتحانية بجامعة بنها</div>
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <div class="uni-badge">جامعة بنها | الفصل الدراسي الثاني 2025-2026</div>
+            <div class="extractor-header" id="extractorDynamic">مستخرج البيان: إسلام خليل مصطفى</div>
+        </div>
+    </div>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+        <div class="live-clock" id="liveClock">--:--:--</div>
+        <div style="display: flex; gap: 8px;">
+            <span style="background:#e8f5e9; padding:3px 10px; border-radius:40px; font-size:11px;">حفظ تلقائي</span>
+            <span style="background:#dbeafe; padding:3px 10px; border-radius:40px; font-size:11px;">غير الموزعة</span>
+        </div>
+    </div>
+
+    <div class="controls">
+        <input type="file" id="uploadExcel" accept=".xlsx, .xls" />
+        <button id="ocrImageBtn" class="btn btn-ocr">رفع صورة واستخراج نص</button>
+        <button id="loadSampleBtn" class="btn btn-sample">تحميل بيانات العينة</button>
+        <button id="sortByPercentBtn" class="btn btn-sort">ترتيب حسب النسبة</button>
+        <button id="refreshBtn" class="btn btn-primary">تحديث الجدول</button>
+        <button id="previewBtn" class="btn btn-preview">عرض كامل</button>
+        <button id="exportExcelBtn" class="btn btn-excel">تصدير Excel</button>
+        <button id="exportTableImageBtn" class="btn btn-table-img">صورة الجدول</button>
+        <button id="saveFullImageBtn" class="btn btn-image">صورة كاملة</button>
+        <button id="backupBtn" class="btn btn-backup">نسخة احتياطية</button>
+        <button id="restoreBtn" class="btn btn-backup">استعادة</button>
+        <button id="resetBtn" class="btn btn-reset">إعادة تعيين</button>
+        <input type="file" id="restoreFileInput" accept=".json" style="display:none;" />
+        <input type="file" id="ocrFileInput" accept="image/*" style="display:none;" />
+    </div>
+
+    <div id="ocrContainer" class="ocr-container">
+        <label><strong>تم رفع الصورة</strong> - يرجى كتابة البيانات المستخرجة من الصورة بالصيغة التالية:</label>
+        <label style="display:block; margin-top:8px; font-size:12px; color:#1e40af;">الصيغة: اسم الكلية | عدد الطلاب | عدد المسجلين | المقررات المسجلة | المقررات الموزعة</label>
+        <textarea id="ocrText" class="ocr-textarea" placeholder="مثال:
+كلية الهندسة بشبرا | 181 | 181 | 134 | 134
+كلية التجارة | 11121 | 11118 | 667 | 667"></textarea>
+        <div class="ocr-buttons">
+            <button id="importOcrDataBtn" class="btn btn-primary">استيراد البيانات من النص</button>
+            <button id="cancelOcrBtn" class="btn btn-reset">إلغاء</button>
+        </div>
+    </div>
+
+    <div id="topSection">
+        <div class="kpi-grid" id="kpiContainer"></div>
+        <div class="charts-row">
+            <div class="chart-box"><h3>مقارنة المقررات المسجلة والموزعة</h3><canvas id="fullBarChart"></canvas></div>
+            <div class="chart-box"><h3>نسبة توزيع المقررات على الكليات</h3><canvas id="pieChart"></canvas></div>
+        </div>
+    </div>
+
+    <div id="tableSection">
+        <div class="editable-table-wrapper">
+            <table id="editableTable">
+                <thead id="tableHeader">
+                    <tr>
+                        <th>#</th>
+                        <th>الكلية</th>
+                        <th>عدد الطلاب المسجلين</th>
+                        <th>عدد المسجلين</th>
+                        <th>عدد المقررات المسجلة</th>
+                        <th>عدد المقررات الموزعة</th>
+                        <th>المقررات الغير موزعة</th>
+                        <th>النسبة</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+                <tfoot id="tableFooter" style="background:#f8fafc; font-weight:bold;"></tfoot>
+            </table>
+        </div>
+    </div>
+
+    <div class="footer-note">
+        يمكنك تعديل أي خلية ثم الضغط على تحديث الجدول.
+    </div>
+</div>
+
+<script>
+(function() {
+    let currentDataRaw = [
+        { id:1, name:"كلية الهندسة بشبرا", students:181, registeredStudents:181, registeredCourses:134, distributed:134 },
+        { id:2, name:"كلية التجارة", students:11121, registeredStudents:11118, registeredCourses:667, distributed:667 },
+        { id:3, name:"كلية الآداب", students:2848, registeredStudents:2843, registeredCourses:575, distributed:574 },
+        { id:4, name:"كلية العلاج الطبيعى", students:1723, registeredStudents:1719, registeredCourses:64, distributed:64 },
+        { id:5, name:"كلية الحقوق", students:9298, registeredStudents:9298, registeredCourses:70, distributed:68 },
+        { id:6, name:"كلية العلوم", students:3584, registeredStudents:3579, registeredCourses:508, distributed:490 },
+        { id:7, name:"كلية الفنون التطبيقية", students:3031, registeredStudents:3029, registeredCourses:226, distributed:215 },
+        { id:8, name:"كلية التربية النوعية", students:7555, registeredStudents:7546, registeredCourses:371, distributed:337 },
+        { id:9, name:"كلية الحاسبات والذكاء الاصطناعي", students:3202, registeredStudents:3203, registeredCourses:139, distributed:104 },
+        { id:10, name:"كلية الهندسة ببنها", students:1767, registeredStudents:1746, registeredCourses:318, distributed:274 },
+        { id:11, name:"المعهد الفني للتمريض", students:2176, registeredStudents:2174, registeredCourses:25, distributed:15 },
+        { id:12, name:"كلية التمريض", students:2364, registeredStudents:2363, registeredCourses:81, distributed:14 },
+        { id:13, name:"كلية التربية", students:8729, registeredStudents:8754, registeredCourses:752, distributed:0 },
+        { id:14, name:"كلية الزراعة", students:4749, registeredStudents:4759, registeredCourses:290, distributed:0 },
+        { id:15, name:"كلية الطب البشرى", students:2128, registeredStudents:2128, registeredCourses:15, distributed:0 },
+        { id:16, name:"كلية الطب البيطري", students:2637, registeredStudents:2637, registeredCourses:204, distributed:0 }
+    ];
+
+    let currentData = [];
+    let barChart, pieChart;
+    const STORAGE_KEY = 'benha_final_clean_v2';
+    const EXTRACTOR_NAME = "مستخرج البيان: إسلام خليل مصطفى";
+    
+    let columnHeaders = [
+        "#", "الكلية", "عدد الطلاب المسجلين", "عدد المسجلين", 
+        "عدد المقررات المسجلة", "عدد المقررات الموزعة", "المقررات الغير موزعة", "النسبة"
+    ];
+    
+    function formatNumber(num) { return num.toLocaleString('en-US'); }
+
+    function getPercent(item) {
+        if(item.registeredCourses === 0) return 0;
+        return (item.distributed / item.registeredCourses) * 100;
+    }
+    
+    function getPercentTextClass(percent) {
+        if(percent >= 100) return 'percent-text-100';
+        if(percent >= 75) return 'percent-text-high';
+        if(percent >= 50) return 'percent-text-mid';
+        if(percent >= 25) return 'percent-text-mid-low';
+        if(percent >= 1) return 'percent-text-low';
+        return 'percent-text-zero';
+    }
+    
+    function getPercentBgClass(percent) {
+        if(percent >= 100) return 'percent-bg-100';
+        if(percent >= 75) return 'percent-bg-high';
+        if(percent >= 50) return 'percent-bg-mid';
+        if(percent >= 25) return 'percent-bg-mid-low';
+        if(percent >= 1) return 'percent-bg-low';
+        return 'percent-bg-zero';
+    }
+
+    function showMessage(msg, color) {
+        let old = document.querySelector('.toast-message');
+        if(old) old.remove();
+        let toast = document.createElement('div');
+        toast.className = 'toast-message';
+        toast.style.backgroundColor = color || '#1e40af';
+        toast.innerText = msg;
+        document.body.appendChild(toast);
+        setTimeout(function() { if(toast.parentNode) toast.remove(); }, 3000);
+    }
+
+    function saveToLocal() {
+        try { 
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                data: currentDataRaw,
+                headers: columnHeaders
+            }));
+        } catch(e) {}
+    }
+
+    function loadFromLocal() {
+        let saved = localStorage.getItem(STORAGE_KEY);
+        if(saved) {
+            try {
+                let parsed = JSON.parse(saved);
+                if(parsed.data && parsed.data.length > 0) {
+                    currentDataRaw = parsed.data;
+                    if(parsed.headers && parsed.headers.length > 0) {
+                        columnHeaders = parsed.headers;
+                    }
+                    return true;
+                }
+            } catch(e) {}
+        }
+        return false;
+    }
+    
+    function updateHeaderDisplay() {
+        let headerRow = document.querySelector('#tableHeader tr');
+        if(headerRow) {
+            let cells = headerRow.querySelectorAll('th');
+            for(let i = 0; i < cells.length && i < columnHeaders.length; i++) {
+                cells[i].innerText = columnHeaders[i];
+            }
+        }
+    }
+    
+    function sortByPercent() {
+        let sorted = [...currentDataRaw];
+        sorted.sort(function(a, b) {
+            return getPercent(b) - getPercent(a);
+        });
+        currentDataRaw = sorted.map(function(item, idx) {
+            let newItem = {};
+            for(let key in item) newItem[key] = item[key];
+            newItem.id = idx + 1;
+            return newItem;
+        });
+        refreshData();
+        showMessage('تم ترتيب الكليات حسب النسبة (من الأعلى للأقل)', '#2c3e66');
+    }
+
+    function refreshData() {
+        currentData = currentDataRaw.map(function(item, idx) {
+            let newItem = {};
+            for(let key in item) newItem[key] = item[key];
+            newItem.id = idx + 1;
+            return newItem;
+        });
+        renderTable();
+        updateKPIs();
+        updateExtractor();
+        saveToLocal();
+        updateCharts();
+    }
+
+    function renderTable() {
+        let tbody = document.getElementById('tableBody');
+        tbody.innerHTML = '';
+        for(let i = 0; i < currentData.length; i++) {
+            let row = currentData[i];
+            let percent = getPercent(row);
+            let notDist = row.registeredCourses - row.distributed;
+            let textClass = getPercentTextClass(percent);
+            let bgClass = getPercentBgClass(percent);
+            let progressWidth = Math.min(percent, 100);
+            
+            let tr = document.createElement('tr');
+            tr.innerHTML = '' +
+                '<td>' + row.id + '</td>' +
+                '<td class="college-name"><input type="text" class="name-inp" value="' + row.name.replace(/"/g, '&quot;') + '" data-id="' + row.id + '"></td>' +
+                '<td><input type="number" class="students-inp" value="' + row.students + '" data-id="' + row.id + '"></td>' +
+                '<td><input type="number" class="regStudents-inp" value="' + (row.registeredStudents || 0) + '" data-id="' + row.id + '"></td>' +
+                '<td><input type="number" class="regCourses-inp" value="' + row.registeredCourses + '" data-id="' + row.id + '"></td>' +
+                '<td><input type="number" class="dist-inp" value="' + row.distributed + '" data-id="' + row.id + '"></td>' +
+                '<td class="not-distributed">' + formatNumber(notDist) + '</td>' +
+                '<td><div class="percent-cell"><div class="percent-bg-bar ' + bgClass + '" style="width:' + progressWidth + '%;"></div><span class="percent-value ' + textClass + '">' + percent.toFixed(1) + '%</span></div></td>';
+            tbody.appendChild(tr);
+        }
+        updateFooter();
+    }
+
+    function updateFooter() {
+        let sumStu = 0, sumRegStu = 0, sumRegCour = 0, sumDist = 0, sumNot = 0;
+        for(let i = 0; i < currentData.length; i++) {
+            let c = currentData[i];
+            sumStu += c.students;
+            sumRegStu += (c.registeredStudents || 0);
+            sumRegCour += c.registeredCourses;
+            sumDist += c.distributed;
+            sumNot += (c.registeredCourses - c.distributed);
+        }
+        let totalP = (sumRegCour === 0) ? 0 : (sumDist / sumRegCour) * 100;
+        let textClass = getPercentTextClass(totalP);
+        let bgClass = getPercentBgClass(totalP);
+        let progressWidth = Math.min(totalP, 100);
+        
+        let footer = document.getElementById('tableFooter');
+        footer.innerHTML = '' +
+            '<tr><td colspan="2"><strong>الإجمالي</strong></td>' +
+            '<td><strong>' + formatNumber(sumStu) + '</strong></td>' +
+            '<td><strong>' + formatNumber(sumRegStu) + '</strong></td>' +
+            '<td><strong>' + formatNumber(sumRegCour) + '</strong></td>' +
+            '<td><strong>' + formatNumber(sumDist) + '</strong></td>' +
+            '<td class="not-distributed"><strong>' + formatNumber(sumNot) + '</strong></td>' +
+            '<td><div class="percent-cell"><div class="percent-bg-bar ' + bgClass + '" style="width:' + progressWidth + '%;"></div><span class="percent-value ' + textClass + '">' + totalP.toFixed(1) + '%</span></div></td>' +
+            '</tr>';
+    }
+
+    function syncFromInputs() {
+        let newRaw = [];
+        let nameInps = document.querySelectorAll('.name-inp');
+        let stuInps = document.querySelectorAll('.students-inp');
+        let regStuInps = document.querySelectorAll('.regStudents-inp');
+        let regCourInps = document.querySelectorAll('.regCourses-inp');
+        let distInps = document.querySelectorAll('.dist-inp');
+        for(let i = 0; i < nameInps.length; i++) {
+            newRaw.push({
+                id: parseInt(nameInps[i].getAttribute('data-id')),
+                name: nameInps[i].value.trim(),
+                students: parseInt(stuInps[i].value) || 0,
+                registeredStudents: parseInt(regStuInps[i].value) || 0,
+                registeredCourses: parseInt(regCourInps[i].value) || 0,
+                distributed: parseInt(distInps[i].value) || 0
+            });
+        }
+        currentDataRaw = newRaw;
+        refreshData();
+        showMessage('تم تحديث البيانات', '#1e40af');
+    }
+
+    function updateKPIs() {
+        let sumStu = 0, sumRegStu = 0, sumRegCour = 0, sumDist = 0;
+        for(let i = 0; i < currentData.length; i++) {
+            let c = currentData[i];
+            sumStu += c.students;
+            sumRegStu += (c.registeredStudents || 0);
+            sumRegCour += c.registeredCourses;
+            sumDist += c.distributed;
+        }
+        let totalP = (sumRegCour === 0) ? 0 : (sumDist / sumRegCour) * 100;
+        let kpiDiv = document.getElementById('kpiContainer');
+        kpiDiv.innerHTML = 
+            '<div class="kpi-card"><div class="kpi-label">اجمالي عدد الطلاب</div><div class="kpi-number">' + formatNumber(sumStu) + '</div></div>' +
+            '<div class="kpi-card"><div class="kpi-label">اجمالي عدد المسجلين</div><div class="kpi-number">' + formatNumber(sumRegStu) + '</div></div>' +
+            '<div class="kpi-card"><div class="kpi-label">اجمالي المقررات المسجلة</div><div class="kpi-number">' + formatNumber(sumRegCour) + '</div></div>' +
+            '<div class="kpi-card"><div class="kpi-label">المقررات الموزعة</div><div class="kpi-number">' + formatNumber(sumDist) + '</div></div>' +
+            '<div class="kpi-card"><div class="kpi-label">غير الموزعة</div><div class="kpi-number">' + formatNumber(sumRegCour - sumDist) + '</div></div>' +
+            '<div class="kpi-card"><div class="kpi-label">نسبة التوزيع الكلية</div><div class="kpi-number">' + totalP.toFixed(1) + '%</div></div>';
+        updateFooter();
+    }
+
+    function updateCharts() {
+        let sorted = [...currentData];
+        sorted.sort(function(a,b) { return b.registeredCourses - a.registeredCourses; });
+        let labels = sorted.map(function(c) { return c.name; });
+        let regVals = sorted.map(function(c) { return c.registeredCourses; });
+        let distVals = sorted.map(function(c) { return c.distributed; });
+        if(barChart) barChart.destroy();
+        let ctxBar = document.getElementById('fullBarChart').getContext('2d');
+        barChart = new Chart(ctxBar, {
+            type: 'bar',
+            data: { labels: labels, datasets: [
+                { label: 'المقررات المسجلة', data: regVals, backgroundColor: '#3b82f6' },
+                { label: 'المقررات الموزعة', data: distVals, backgroundColor: '#f97316' }
+            ]},
+            options: {
+                responsive: true, maintainAspectRatio: true,
+                plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: function(ctx) { return ctx.dataset.label + ': ' + ctx.raw.toLocaleString('en-US'); } } } },
+                scales: { y: { beginAtZero: true, ticks: { callback: function(val) { return val.toLocaleString('en-US'); } } }, x: { ticks: { autoSkip: false, maxRotation: 35, minRotation: 35, font: { size: 9 } } } }
+            }
+        });
+        
+        let nonZero = currentData.filter(function(c) { return c.distributed > 0; });
+        let pieLabels = [], pieValues = [];
+        if(nonZero.length === 0) {
+            pieLabels = ['لا توجد مقررات موزعة'];
+            pieValues = [100];
+        } else {
+            let totalDist = 0;
+            for(let i = 0; i < currentData.length; i++) totalDist += currentData[i].distributed;
+            for(let i = 0; i < nonZero.length; i++) {
+                let perc = ((nonZero[i].distributed / totalDist) * 100).toFixed(1);
+                pieLabels.push(nonZero[i].name + ' (' + perc + '%)');
+                pieValues.push(nonZero[i].distributed);
+            }
+        }
+        if(pieChart) pieChart.destroy();
+        let ctxPie = document.getElementById('pieChart').getContext('2d');
+        pieChart = new Chart(ctxPie, {
+            type: 'pie',
+            data: { labels: pieLabels, datasets: [{ data: pieValues, backgroundColor: ['#2563eb','#f97316','#10b981','#8b5cf6','#f43f5e','#06b6d4','#a855f7','#64748b','#eab308','#ec489a'] }] },
+            options: { responsive: true, plugins: { legend: { position: 'right', labels: { font: { size: 10 } } }, tooltip: { callbacks: { label: function(ctx) { let total = ctx.dataset.data.reduce(function(a,b){return a+b;},0); let perc = ((ctx.raw/total)*100).toFixed(1); return ctx.label + ': ' + ctx.raw + ' مقرر (' + perc + '%)'; } } } } }
+        });
+    }
+
+    function loadSampleData() {
+        currentDataRaw = [
+            { id:1, name:"كلية الهندسة بشبرا", students:181, registeredStudents:181, registeredCourses:134, distributed:134 },
+            { id:2, name:"كلية التجارة", students:11121, registeredStudents:11118, registeredCourses:667, distributed:667 },
+            { id:3, name:"كلية الآداب", students:2848, registeredStudents:2843, registeredCourses:575, distributed:574 },
+            { id:4, name:"كلية العلاج الطبيعى", students:1723, registeredStudents:1719, registeredCourses:64, distributed:64 },
+            { id:5, name:"كلية الحقوق", students:9298, registeredStudents:9298, registeredCourses:70, distributed:68 },
+            { id:6, name:"كلية العلوم", students:3584, registeredStudents:3579, registeredCourses:508, distributed:490 },
+            { id:7, name:"كلية الفنون التطبيقية", students:3031, registeredStudents:3029, registeredCourses:226, distributed:215 },
+            { id:8, name:"كلية التربية النوعية", students:7555, registeredStudents:7546, registeredCourses:371, distributed:337 },
+            { id:9, name:"كلية الحاسبات والذكاء الاصطناعي", students:3202, registeredStudents:3203, registeredCourses:139, distributed:104 },
+            { id:10, name:"كلية الهندسة ببنها", students:1767, registeredStudents:1746, registeredCourses:318, distributed:274 },
+            { id:11, name:"المعهد الفني للتمريض", students:2176, registeredStudents:2174, registeredCourses:25, distributed:15 },
+            { id:12, name:"كلية التمريض", students:2364, registeredStudents:2363, registeredCourses:81, distributed:14 },
+            { id:13, name:"كلية التربية", students:8729, registeredStudents:8754, registeredCourses:752, distributed:0 },
+            { id:14, name:"كلية الزراعة", students:4749, registeredStudents:4759, registeredCourses:290, distributed:0 },
+            { id:15, name:"كلية الطب البشرى", students:2128, registeredStudents:2128, registeredCourses:15, distributed:0 },
+            { id:16, name:"كلية الطب البيطري", students:2637, registeredStudents:2637, registeredCourses:204, distributed:0 }
+        ];
+        refreshData();
+        showMessage('تم تحميل بيانات العينة', '#0f5b8a');
+    }
+
+    function resetData() { loadSampleData(); }
+    
+    function backupData() {
+        let backup = { version: "8.0", date: new Date().toISOString(), colleges: currentDataRaw, headers: columnHeaders };
+        let jsonStr = JSON.stringify(backup, null, 2);
+        let blob = new Blob([jsonStr], {type: 'application/json'});
+        let link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = "benha_backup_" + new Date().toISOString().slice(0,19) + ".json";
+        link.click();
+        showMessage('تم إنشاء النسخة الاحتياطية', '#9b59b6');
+    }
+    
+    function restoreData(file) {
+        let reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                let restored = JSON.parse(e.target.result);
+                let newData = restored.colleges || (Array.isArray(restored) ? restored : null);
+                if(newData && newData.length > 0) {
+                    currentDataRaw = newData;
+                    if(restored.headers && restored.headers.length > 0) {
+                        columnHeaders = restored.headers;
+                        updateHeaderDisplay();
+                    }
+                    refreshData();
+                    showMessage('تم استعادة البيانات', '#9b59b6');
+                } else { showMessage('ملف غير صالح', '#e74c3c'); }
+            } catch(err) { showMessage('خطأ في القراءة', '#e74c3c'); }
+        };
+        reader.readAsText(file);
+    }
+    
+    function exportToExcel() {
+        let rows = [columnHeaders];
+        for(let i = 0; i < currentData.length; i++) {
+            let c = currentData[i];
+            let p = getPercent(c);
+            rows.push([i+1, c.name, c.students, c.registeredStudents || 0, c.registeredCourses, c.distributed, c.registeredCourses - c.distributed, p.toFixed(2) + "%"]);
+        }
+        let sumStu=0, sumRegStu=0, sumRegCour=0, sumDist=0;
+        for(let i = 0; i < currentData.length; i++) {
+            sumStu += currentData[i].students;
+            sumRegStu += (currentData[i].registeredStudents || 0);
+            sumRegCour += currentData[i].registeredCourses;
+            sumDist += currentData[i].distributed;
+        }
+        let totalP = (sumRegCour === 0) ? 0 : (sumDist / sumRegCour) * 100;
+        rows.push(["", "الإجمالي", sumStu, sumRegStu, sumRegCour, sumDist, sumRegCour - sumDist, totalP.toFixed(2) + "%"]);
+        let ws = XLSX.utils.aoa_to_sheet(rows);
+        let wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "داشبورد_بنها");
+        XLSX.writeFile(wb, "dashboard_benha_" + new Date().toISOString().slice(0,19) + ".xlsx");
+        showMessage('تم تصدير Excel', '#10b981');
+    }
+    
+    function exportTableImage() {
+        let now = new Date();
+        let dateStr = now.getDate() + '/' + (now.getMonth()+1) + '/' + now.getFullYear() + ' ' + now.toLocaleTimeString('en-GB', { hour12: false });
+        let title = document.getElementById('dashboardTitle').innerText;
+        let tableSection = document.getElementById('tableSection');
+        let clone = tableSection.cloneNode(true);
+        let headerDiv = document.createElement('div');
+        headerDiv.style.cssText = 'text-align:center; margin-bottom:20px; padding:15px; background:#f0f4f8; border-radius:15px; border-right:5px solid #1e40af;';
+        headerDiv.innerHTML = '<h2 style="color:#0f2b5e;">' + title + '</h2><div style="display:flex; justify-content:center; gap:20px; margin-top:10px;"><span style="background:#1e3a8a; color:white; padding:5px 15px; border-radius:40px;">' + EXTRACTOR_NAME + '</span><span style="background:#1e293b; color:#facc15; padding:5px 15px; border-radius:40px;">وقت الاستخراج: ' + dateStr + '</span></div>';
+        let container = document.createElement('div');
+        container.style.backgroundColor = 'white';
+        container.style.padding = '20px';
+        container.style.borderRadius = '16px';
+        container.appendChild(headerDiv);
+        container.appendChild(clone);
+        document.body.appendChild(container);
+        let controlsDiv = document.querySelector('.controls');
+        if(controlsDiv) controlsDiv.style.visibility = 'hidden';
+        html2canvas(container, { scale: 2, backgroundColor: '#ffffff' }).then(function(canvas) {
+            if(controlsDiv) controlsDiv.style.visibility = 'visible';
+            document.body.removeChild(container);
+            let link = document.createElement('a');
+            link.download = "table_report_" + new Date().toISOString().slice(0,19) + ".jpeg";
+            link.href = canvas.toDataURL('image/jpeg', 0.95);
+            link.click();
+            showMessage('تم استخراج صورة الجدول', '#0891b2');
+        }).catch(function(err) {
+            if(controlsDiv) controlsDiv.style.visibility = 'visible';
+            document.body.removeChild(container);
+            showMessage('خطأ: ' + err, '#e74c3c');
+        });
+    }
+    
+    function captureFull() {
+        let controlsDiv = document.querySelector('.controls');
+        if(controlsDiv) controlsDiv.style.visibility = 'hidden';
+        html2canvas(document.querySelector('#editorContainer'), { scale: 2, backgroundColor: '#ffffff' }).then(function(canvas) {
+            if(controlsDiv) controlsDiv.style.visibility = 'visible';
+            let link = document.createElement('a');
+            link.download = "dashboard_full_" + new Date().toISOString().slice(0,19) + ".jpeg";
+            link.href = canvas.toDataURL('image/jpeg', 0.95);
+            link.click();
+            showMessage('تم حفظ الصورة الكاملة', '#8b5cf6');
+        }).catch(function(err) {
+            if(controlsDiv) controlsDiv.style.visibility = 'visible';
+            showMessage('خطأ: ' + err, '#e74c3c');
+        });
+    }
+    
+    function handleExcelUpload(file) {
+        let reader = new FileReader();
+        reader.onload = function(e) {
+            let data = new Uint8Array(e.target.result);
+            let workbook = XLSX.read(data, {type:'array'});
+            let sheet = workbook.Sheets[workbook.SheetNames[0]];
+            let rows = XLSX.utils.sheet_to_json(sheet, {header:1, defval:""});
+            let newRaw = []; let idx = 1;
+            for(let i = 0; i < rows.length; i++) {
+                let row = rows[i];
+                if(row.length < 5) continue;
+                let name = row[0] ? row[0].toString().trim() : "";
+                if(name && (name.indexOf('كلية') !== -1 || name.indexOf('معهد') !== -1)) {
+                    newRaw.push({
+                        id: idx++, name: name,
+                        students: parseFloat(row[1]) || 0,
+                        registeredStudents: parseFloat(row[2]) || 0,
+                        registeredCourses: parseFloat(row[3]) || 0,
+                        distributed: parseFloat(row[4]) || 0
+                    });
+                }
+            }
+            if(newRaw.length > 0) { currentDataRaw = newRaw; refreshData(); showMessage('تم رفع ' + newRaw.length + ' كلية', '#10b981'); }
+            else showMessage('لم يتم التعرف على البيانات', '#e74c3c');
+        };
+        reader.readAsArrayBuffer(file);
+    }
+    
+    function openOcrDialog() { 
+        document.getElementById('ocrFileInput').click(); 
+    }
+    
+    function handleOcrImage(file) {
+        showMessage('تم تحميل الصورة: ' + file.name + '. الرجاء إدخال البيانات يدوياً في المربع أدناه', '#d97706');
+        document.getElementById('ocrContainer').style.display = 'block';
+        let sampleText = 'اكتب البيانات هنا بالصيغة التالية:\n\nكلية العلوم | 5567 | 3579 | 508 | 490\nكلية الزراعة | 6124 | 4759 | 290 | 0';
+        document.getElementById('ocrText').value = sampleText;
+    }
+    
+    function importFromOcrText() {
+        let text = document.getElementById('ocrText').value;
+        let lines = text.split('\n');
+        let newData = []; 
+        let idCounter = 1;
+        
+        for(let i = 0; i < lines.length; i++) {
+            let line = lines[i].trim();
+            if(line === '') continue;
+            if(line.indexOf('|') === -1) continue;
+            
+            let parts = line.split('|');
+            if(parts.length >= 5) {
+                let name = parts[0].trim();
+                let students = parseInt(parts[1]) || 0;
+                let registeredStudents = parseInt(parts[2]) || 0;
+                let registeredCourses = parseInt(parts[3]) || 0;
+                let distributed = parseInt(parts[4]) || 0;
+                
+                if(name && (name.indexOf('كلية') !== -1 || name.indexOf('معهد') !== -1)) {
+                    newData.push({
+                        id: idCounter++,
+                        name: name,
+                        students: students,
+                        registeredStudents: registeredStudents,
+                        registeredCourses: registeredCourses,
+                        distributed: distributed
+                    });
+                }
+            }
+        }
+        
+        if(newData.length > 0) { 
+            currentDataRaw = newData; 
+            refreshData(); 
+            document.getElementById('ocrContainer').style.display = 'none'; 
+            document.getElementById('ocrText').value = ''; 
+            showMessage('تم استيراد ' + newData.length + ' كلية من النص', '#10b981'); 
+        } else { 
+            showMessage('لم يتم التعرف على البيانات. تأكد من الصيغة: الاسم | الطلاب | المسجلين | المسجلة | الموزعة', '#e74c3c'); 
+        }
+    }
+    
+    function cancelOcr() { 
+        document.getElementById('ocrContainer').style.display = 'none'; 
+        document.getElementById('ocrText').value = ''; 
+    }
+    
+    // وظيفة العرض الكامل المبسطة
+    function openFullPreview() {
+        let now = new Date();
+        let dateStr = now.getDate() + '/' + (now.getMonth()+1) + '/' + now.getFullYear() + ' ' + now.toLocaleTimeString('en-GB', { hour12: false });
+        let title = document.getElementById('dashboardTitle').innerText;
+        
+        let previewWindow = window.open('', '_blank', 'width=1300,height=800,scrollbars=yes,resizable=yes');
+        if(!previewWindow) {
+            showMessage('الرجاء السماح بالنوافذ المنبثقة في المتصفح', '#e74c3c');
+            return;
+        }
+        
+        // حساب الإجماليات
+        let sumStu = 0, sumRegStu = 0, sumRegCour = 0, sumDist = 0;
+        for(let i = 0; i < currentData.length; i++) {
+            sumStu += currentData[i].students;
+            sumRegStu += (currentData[i].registeredStudents || 0);
+            sumRegCour += currentData[i].registeredCourses;
+            sumDist += currentData[i].distributed;
+        }
+        let totalP = (sumRegCour === 0) ? 0 : (sumDist / sumRegCour) * 100;
+        let totalNot = sumRegCour - sumDist;
+        
+        let html = '<!DOCTYPE html>\n';
+        html += '<html dir="rtl" lang="ar">\n';
+        html += '<head>\n';
+        html += '<meta charset="UTF-8">\n';
+        html += '<title>' + title + '</title>\n';
+        html += '<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"><\/script>\n';
+        html += '<style>\n';
+        html += '*{margin:0;padding:0;box-sizing:border-box;font-family:"Segoe UI",Tahoma,system-ui;}\n';
+        html += 'body{background:#eef2f5;padding:20px;}\n';
+        html += '.container{max-width:1400px;margin:0 auto;background:white;border-radius:24px;padding:25px;}\n';
+        html += 'h1{color:#0f2b5e;text-align:center;margin-bottom:15px;}\n';
+        html += '.info-bar{display:flex;justify-content:space-between;margin-bottom:25px;padding:12px;background:#f0f4f8;border-radius:15px;flex-wrap:wrap;gap:10px;}\n';
+        html += '.info-item{background:#1e3a8a;color:white;padding:6px 18px;border-radius:40px;}\n';
+        html += '.info-time{background:#1e293b;color:#facc15;padding:6px 18px;border-radius:40px;}\n';
+        html += '.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:15px;margin-bottom:25px;}\n';
+        html += '.kpi-card{background:#fff;border-radius:20px;padding:15px;border:1px solid #e2edff;text-align:center;}\n';
+        html += '.kpi-number{font-size:32px;font-weight:800;color:#0f2b5e;}\n';
+        html += '.kpi-label{font-size:13px;color:#4a5b7a;}\n';
+        html += '.charts-row{display:flex;flex-wrap:wrap;gap:25px;margin:20px 0;}\n';
+        html += '.chart-box{flex:1;min-width:300px;background:#fff;padding:15px;border-radius:15px;border:1px solid #eef2f8;}\n';
+        html += '.chart-box h3{margin-bottom:15px;}\n';
+        html += 'canvas{max-height:350px;width:100%;}\n';
+        html += '.table-wrapper{overflow-x:auto;margin:20px 0;border-radius:20px;border:1px solid #e2e8f0;}\n';
+        html += 'table{width:100%;border-collapse:collapse;font-size:13px;min-width:950px;}\n';
+        html += 'th{background:#1e40af;color:white;padding:12px;}\n';
+        html += 'td{padding:10px;text-align:center;border-bottom:1px solid #eef2f8;}\n';
+        html += '.not-dist{background:#dbeafe;font-weight:bold;}\n';
+        html += '.percent-cell{position:relative;display:flex;align-items:center;justify-content:center;padding:4px 8px;border-radius:30px;background:#f1f5f9;overflow:hidden;}\n';
+        html += '.percent-bg{position:absolute;top:0;right:0;height:100%;border-radius:30px;z-index:0;}\n';
+        html += '.percent-val{position:relative;z-index:1;font-weight:bold;font-size:13px;padding:0 8px;}\n';
+        html += '.text-100{color:#166534;}.text-high{color:#3f6212;}.text-mid{color:#854d0e;}.text-mid-low{color:#9a3412;}.text-low{color:#991b1b;}.text-zero{color:#475569;}\n';
+        html += '.bg-100{background:#bbf7d0;}.bg-high{background:#d9f99d;}.bg-mid{background:#fef08a;}.bg-mid-low{background:#fed7aa;}.bg-low{background:#fecaca;}.bg-zero{background:#e2e8f0;}\n';
+        html += '.footer{text-align:center;font-size:11px;color:#5b6e8c;margin-top:20px;padding-top:15px;border-top:1px solid #e2e8f0;}\n';
+        html += '<\/style>\n';
+        html += '<\/head>\n';
+        html += '<body>\n';
+        html += '<div class="container">\n';
+        html += '<h1>' + title + '</h1>\n';
+        html += '<div class="info-bar">\n';
+        html += '<span class="info-item">مستخرج البيان: إسلام خليل مصطفى</span>\n';
+        html += '<span class="info-time">وقت الاستخراج: ' + dateStr + '</span>\n';
+        html += '<span class="info-item">جامعة بنها</span>\n';
+        html += '</div>\n';
+        
+        // KPIs
+        html += '<div class="kpi-grid">\n';
+        html += '<div class="kpi-card"><div class="kpi-number">' + sumStu.toLocaleString('en-US') + '</div><div class="kpi-label">اجمالي عدد الطلاب</div></div>\n';
+        html += '<div class="kpi-card"><div class="kpi-number">' + sumRegStu.toLocaleString('en-US') + '</div><div class="kpi-label">اجمالي عدد المسجلين</div></div>\n';
+        html += '<div class="kpi-card"><div class="kpi-number">' + sumRegCour.toLocaleString('en-US') + '</div><div class="kpi-label">اجمالي المقررات المسجلة</div></div>\n';
+        html += '<div class="kpi-card"><div class="kpi-number">' + sumDist.toLocaleString('en-US') + '</div><div class="kpi-label">المقررات الموزعة</div></div>\n';
+        html += '<div class="kpi-card"><div class="kpi-number">' + totalNot.toLocaleString('en-US') + '</div><div class="kpi-label">غير الموزعة</div></div>\n';
+        html += '<div class="kpi-card"><div class="kpi-number">' + totalP.toFixed(1) + '%</div><div class="kpi-label">نسبة التوزيع الكلية</div></div>\n';
+        html += '</div>\n';
+        
+        // مكان للرسوم البيانية
+        html += '<div class="charts-row">\n';
+        html += '<div class="chart-box"><h3>مقارنة المقررات المسجلة والموزعة</h3><canvas id="barChartPreview"></canvas></div>\n';
+        html += '<div class="chart-box"><h3>نسبة توزيع المقررات على الكليات</h3><canvas id="pieChartPreview"></canvas></div>\n';
+        html += '</div>\n';
+        
+        // الجدول
+        html += '<div class="table-wrapper">\n';
+        html += '<table>\n';
+        html += '<thead><tr>';
+        for(let i = 0; i < columnHeaders.length; i++) {
+            html += '<th>' + columnHeaders[i] + '</th>';
+        }
+        html += '</tr></thead>\n';
+        html += '<tbody id="previewBody"></tbody>\n';
+        html += '<tfoot id="previewFoot"></tfoot>\n';
+        html += '</table>\n';
+        html += '</div>\n';
+        
+        html += '<div class="footer">* غير الموزعة = المقررات المسجلة - المقررات الموزعة</div>\n';
+        html += '</div>\n';
+        
+        html += '<script>\n';
+        html += 'var data = ' + JSON.stringify(currentData) + ';\n';
+        html += 'var headers = ' + JSON.stringify(columnHeaders) + ';\n';
+        html += 'function fmt(n){return n.toLocaleString("en-US");}\n';
+        html += 'function getP(item){return item.registeredCourses===0?0:(item.distributed/item.registeredCourses)*100;}\n';
+        html += 'function getTextClass(p){if(p>=100)return"text-100";if(p>=75)return"text-high";if(p>=50)return"text-mid";if(p>=25)return"text-mid-low";if(p>=1)return"text-low";return"text-zero";}\n';
+        html += 'function getBgClass(p){if(p>=100)return"bg-100";if(p>=75)return"bg-high";if(p>=50)return"bg-mid";if(p>=25)return"bg-mid-low";if(p>=1)return"bg-low";return"bg-zero";}\n';
+        
+        html += 'var tbody = document.getElementById("previewBody");\n';
+        html += 'for(var i=0;i<data.length;i++){\n';
+        html += 'var c=data[i];\n';
+        html += 'var p=getP(c);\n';
+        html += 'var tc=getTextClass(p);\n';
+        html += 'var bc=getBgClass(p);\n';
+        html += 'var notDist=c.registeredCourses-c.distributed;\n';
+        html += 'var pw=Math.min(p,100);\n';
+        html += 'tbody.insertAdjacentHTML("beforeend","<tr><td style=\"text-align:center;\">"+(i+1)+"</td><td style=\"text-align:right;\">"+c.name+"</td>"+fmt(c.students)+"</td>"+fmt(c.registeredStudents||0)+"</td>"+fmt(c.registeredCourses)+"</td>"+fmt(c.distributed)+"</td><td class=\"not-dist\">"+fmt(notDist)+"</td><td><div class=\"percent-cell\"><div class=\"percent-bg '+bc+'\" style=\"width:"+pw+"%;\"></div><span class=\"percent-val '+tc+'\">"+p.toFixed(1)+"%</span></div></td></tr>");\n';
+        html += '}\n';
+        
+        html += 'var sumStu=' + sumStu + ',sumRegStu=' + sumRegStu + ',sumRegCour=' + sumRegCour + ',sumDist=' + sumDist + ',totalNot=' + totalNot + ',totalP=' + totalP + ';\n';
+        html += 'var totalTextClass=getTextClass(totalP);\n';
+        html += 'var totalBgClass=getBgClass(totalP);\n';
+        html += 'var totalPw=Math.min(totalP,100);\n';
+        html += 'document.getElementById("previewFoot").innerHTML="<tr><td colspan=\"2\"><strong>الإجمالي</strong></td><td><strong>"+fmt(sumStu)+"</strong></td><td><strong>"+fmt(sumRegStu)+"</strong></td><td><strong>"+fmt(sumRegCour)+"</strong></td><td><strong>"+fmt(sumDist)+"</strong></td><td class=\"not-dist\"><strong>"+fmt(totalNot)+"</strong></td><td><div class=\"percent-cell\"><div class=\"percent-bg '+totalBgClass+'\" style=\"width:"+totalPw+"%;\"></div><span class=\"percent-val '+totalTextClass+'\">"+totalP.toFixed(1)+"%</span></div></td></tr>";\n';
+        
+        html += 'var sorted = [...data].sort(function(a,b){return b.registeredCourses - a.registeredCourses;});\n';
+        html += 'var barCtx = document.getElementById("barChartPreview").getContext("2d");\n';
+        html += 'new Chart(barCtx,{type:"bar",data:{labels:sorted.map(function(c){return c.name;}),datasets:[{label:"المقررات المسجلة",data:sorted.map(function(c){return c.registeredCourses;}),backgroundColor:"#3b82f6"},{label:"المقررات الموزعة",data:sorted.map(function(c){return c.distributed;}),backgroundColor:"#f97316"}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{position:"top"},tooltip:{callbacks:{label:function(ctx){return ctx.dataset.label+": "+ctx.raw.toLocaleString("en-US");}}}},scales:{y:{beginAtZero:true,ticks:{callback:function(val){return val.toLocaleString("en-US");}}}}}});\n';
+        
+        html += 'var nonZero = data.filter(function(c){return c.distributed>0;});\n';
+        html += 'var pieLabels=[],pieValues=[];\n';
+        html += 'if(nonZero.length===0){pieLabels=["لا توجد مقررات موزعة"];pieValues=[100];}\n';
+        html += 'else{var totalD=0;for(var i=0;i<data.length;i++)totalD+=data[i].distributed;for(var i=0;i<nonZero.length;i++){var perc=((nonZero[i].distributed/totalD)*100).toFixed(1);pieLabels.push(nonZero[i].name+" ("+perc+"%)");pieValues.push(nonZero[i].distributed);}}\n';
+        html += 'var pieCtx = document.getElementById("pieChartPreview").getContext("2d");\n';
+        html += 'new Chart(pieCtx,{type:"pie",data:{labels:pieLabels,datasets:[{data:pieValues,backgroundColor:["#2563eb","#f97316","#10b981","#8b5cf6","#f43f5e","#06b6d4","#a855f7"]}]},options:{responsive:true,plugins:{legend:{position:"right",labels:{font:{size:10}}},tooltip:{callbacks:{label:function(ctx){var total=ctx.dataset.data.reduce(function(a,b){return a+b;},0);var perc=((ctx.raw/total)*100).toFixed(1);return ctx.label+": "+ctx.raw+" مقرر ("+perc+"%)";}}}}}});\n';
+        
+        html += '<\/script>\n';
+        html += '<\/body>\n';
+        html += '<\/html>';
+        
+        previewWindow.document.write(html);
+        previewWindow.document.close();
+        showMessage('تم فتح نافذة العرض الكامل', '#d97706');
+    }
+
+    function updateClock() {
+        let now = new Date();
+        let d = now.getDate(), m = now.getMonth()+1, y = now.getFullYear();
+        let t = now.toLocaleTimeString('en-GB', { hour12: false });
+        document.getElementById('liveClock').innerText = d + '/' + m + '/' + y + ' ' + t;
+    }
+
+    function updateExtractor() {
+        let now = new Date();
+        let d = now.getDate(), m = now.getMonth()+1, y = now.getFullYear();
+        let t = now.toLocaleTimeString('en-GB', { hour12: false });
+        document.getElementById('extractorDynamic').innerHTML = EXTRACTOR_NAME + ' | ' + d + '/' + m + '/' + y + ' - ' + t;
+    }
+
+    document.getElementById('refreshBtn').addEventListener('click', syncFromInputs);
+    document.getElementById('sortByPercentBtn').addEventListener('click', sortByPercent);
+    document.getElementById('previewBtn').addEventListener('click', openFullPreview);
+    document.getElementById('exportExcelBtn').addEventListener('click', exportToExcel);
+    document.getElementById('resetBtn').addEventListener('click', resetData);
+    document.getElementById('loadSampleBtn').addEventListener('click', loadSampleData);
+    document.getElementById('exportTableImageBtn').addEventListener('click', exportTableImage);
+    document.getElementById('saveFullImageBtn').addEventListener('click', captureFull);
+    document.getElementById('backupBtn').addEventListener('click', backupData);
+    document.getElementById('restoreBtn').addEventListener('click', function() { document.getElementById('restoreFileInput').click(); });
+    document.getElementById('restoreFileInput').addEventListener('change', function(e) { if(e.target.files[0]) restoreData(e.target.files[0]); e.target.value = ''; });
+    document.getElementById('uploadExcel').addEventListener('change', function(e) { if(e.target.files[0]) handleExcelUpload(e.target.files[0]); e.target.value = ''; });
+    document.getElementById('ocrImageBtn').addEventListener('click', openOcrDialog);
+    document.getElementById('ocrFileInput').addEventListener('change', function(e) { if(e.target.files[0]) handleOcrImage(e.target.files[0]); e.target.value = ''; });
+    document.getElementById('importOcrDataBtn').addEventListener('click', importFromOcrText);
+    document.getElementById('cancelOcrBtn').addEventListener('click', cancelOcr);
+
+    if(!loadFromLocal()) saveToLocal();
+    refreshData();
+    updateHeaderDisplay();
+    updateClock();
+    setInterval(updateClock, 1000);
+    showMessage('النظام جاهز', '#1e40af');
+})();
+</script>
+</body>
+</html>
