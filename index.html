@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>داشبورد جامعة بنها - النظام المتكامل</title>
+    <title>داشبورد جامعة بنها - الإصدار النهائي</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -57,8 +57,8 @@
         .modal-box{background:white;border-radius:20px;padding:25px;width:350px;text-align:center;}
         .modal-box input{width:100%;padding:10px;margin:15px 0;border-radius:12px;border:1px solid #ccc;}
         .percent-wrapper{position:relative;width:100%;min-width:130px;display:inline-block;}
-        .percent-bar-bg{background-color:#e2e8f0;border-radius:30px;height:34px;width:100%;overflow:hidden;position:relative;}
-        .percent-bar-fill{height:100%;border-radius:30px;transition:width 0.5s ease;}
+        .percent-bar-bg{background-color:#e2e8f0;border-radius:30px;height:34px;width:100%;overflow:hidden;}
+        .percent-bar-fill{height:100%;border-radius:30px;transition:width 0.5s;}
         .percent-text{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-weight:bold;font-size:13px;white-space:nowrap;z-index:2;color:white;text-shadow:0 0 2px rgba(0,0,0,0.3);}
         .percent-text-dark{color:#1e293b;text-shadow:none;}
         .fill-100{background:linear-gradient(90deg,#22c55e,#16a34a);}
@@ -81,6 +81,12 @@
         }
         .preview-header-card span{font-size:14px;font-weight:500;}
         .preview-header-card .title-info{color:#0f2b5e;font-weight:bold;}
+        .preview-table-container{margin-top:15px;overflow-x:auto;border:1px solid #e2e8f0;border-radius:12px;background:white;}
+        .preview-table-container table{width:100%;border-collapse:collapse;font-size:12px;}
+        .preview-table-container th{background:#1e40af;color:white;padding:6px;}
+        .preview-table-container td{padding:4px;border:1px solid #e2e8f0;}
+        .preview-table-container input{width:100%;padding:4px;border-radius:6px;border:1px solid #cbd5e1;text-align:center;}
+        .manual-template{background:#fef9e3;padding:10px;border-radius:12px;margin-top:10px;font-size:12px;border-right:3px solid #d97706;}
     </style>
 </head>
 <body>
@@ -99,7 +105,7 @@
 
     <div class="controls">
         <input type="file" id="excelFile" accept=".xlsx, .xls" />
-        <button id="ocrImageBtn" class="btn btn-ocr">📷 رفع صورة OCR</button>
+        <button id="ocrImageBtn" class="btn btn-ocr">📷 رفع صورة (OCR)</button>
         <button id="sampleBtn" class="btn btn-sample">📋 بيانات العينة</button>
         <button id="sortBtn" class="btn btn-sort">📊 ترتيب حسب النسبة</button>
         <button id="refreshBtn" class="btn btn-primary">🔄 تحديث الجدول</button>
@@ -121,10 +127,17 @@
         <img id="imagePreview" class="image-preview" alt="معاينة الصورة">
         <label>📝 النص المستخرج (يمكنك تعديله):</label>
         <textarea id="ocrText" class="ocr-text" placeholder="سيظهر النص المستخرج..."></textarea>
+        <div class="manual-template">
+            💡 <strong>طريقة الإدخال اليدوي:</strong> إذا لم يتعرف OCR على البيانات، يمكنك كتابة البيانات يدوياً بالصيغة:<br>
+            <code>اسم الكلية | عدد الطلاب | عدد المسجلين | المقررات المسجلة | المقررات الموزعة</code><br>
+            مثال: <code>كلية العلوم | 5567 | 3579 | 508 | 490</code><br>
+            (كل سطر لكلية، ثم اضغط "تحليل النص وعرض معاينة")
+        </div>
         <div class="ocr-buttons">
-            <button id="importOcrBtn" class="btn btn-primary">✅ استيراد</button>
+            <button id="importOcrBtn" class="btn btn-primary">✅ تحليل النص وعرض معاينة</button>
             <button id="cancelOcrBtn" class="btn btn-reset">❌ إلغاء</button>
         </div>
+        <div id="previewTableContainer" class="preview-table-container" style="display:none;"></div>
     </div>
 
     <div class="kpi-grid" id="kpiArea"></div>
@@ -148,6 +161,7 @@
 
 <script>
 (function(){
+    // ------------------- البيانات الأساسية -------------------
     let colleges = [
         {id:1, name:"كلية العلوم", students:5561, regStudents:3573, regCourses:508, distributed:490},
         {id:2, name:"كلية الزراعة", students:6124, regStudents:4765, regCourses:290, distributed:0},
@@ -170,7 +184,7 @@
     let currentData = [];
     let headers = ["#", "الكلية", "عدد الطلاب", "عدد المسجلين", "المقررات المسجلة", "المقررات الموزعة", "غير الموزعة", "نسبة التوزيع"];
     let barChart, pieChart;
-    const STORAGE_KEY = "benha_final_stable_v2";
+    const STORAGE_KEY = "benha_final_fixed_views_v2";
     const EXTRACTOR_NAME = "مستخرج البيان: إسلام خليل مصطفى";
 
     function formatNum(n){ return n.toLocaleString('en-US'); }
@@ -441,7 +455,7 @@
     }
 
     function backupData(){
-        let backup = { version:"5.0", date:new Date().toISOString(), colleges:colleges, headers:headers };
+        let backup = { version:"6.0", date:new Date().toISOString(), colleges:colleges, headers:headers };
         let blob = new Blob([JSON.stringify(backup,null,2)], {type:'application/json'});
         let link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
@@ -486,7 +500,7 @@
         reader.readAsArrayBuffer(file);
     }
 
-    // OCR
+    // ------------------- OCR (كما هو) -------------------
     function openOcrImage() { document.getElementById('ocrFileInput').click(); }
     async function handleOcrFile(file) {
         const loadingDiv = document.getElementById('ocrLoading');
@@ -507,59 +521,150 @@
             const { data: { text } } = await worker.recognize(file);
             await worker.terminate();
             let extractedText = text.trim();
-            if (!extractedText) { document.getElementById('ocrText').value = 'لم يتم التعرف على نص. تأكد من أن الصورة تحتوي على أرقام وأسماء كليات واضحة.'; showMessage('فشل التعرف على النص، حاول رفع صورة أوضح', '#e74c3c'); }
-            else { document.getElementById('ocrText').value = extractedText; showMessage('تم استخراج النص بنجاح، يمكنك تعديله ثم استيراده', '#10b981'); }
+            if (!extractedText || extractedText.length < 10) { 
+                document.getElementById('ocrText').value = 'لم يتم التعرف على نص. يمكنك إدخال البيانات يدوياً بالصيغة الموضحة أعلاه.'; 
+                showMessage('فشل التعرف على النص. الرجاء استخدام الإدخال اليدوي.', '#e74c3c'); 
+            } else { 
+                document.getElementById('ocrText').value = extractedText; 
+                showMessage('تم استخراج النص. اضغط "تحليل النص وعرض معاينة" لمحاولة استخراج البيانات.', '#10b981'); 
+            }
         } catch (err) {
             await worker.terminate();
-            document.getElementById('ocrText').value = 'حدث خطأ أثناء معالجة الصورة: ' + err.message;
-            showMessage('خطأ في OCR، حاول مرة أخرى', '#e74c3c');
+            document.getElementById('ocrText').value = 'حدث خطأ: ' + err.message;
+            showMessage('خطأ في OCR، حاول الإدخال اليدوي', '#e74c3c');
         } finally {
             loadingDiv.style.display = 'none';
             progressDiv.style.display = 'none';
         }
     }
-    function importFromOcrText(){
-        let text = document.getElementById('ocrText').value;
-        let lines = text.split('\n');
-        let newData = []; let idCounter = 1;
-        for(let i=0; i<lines.length; i++){
-            let line = lines[i].trim();
-            if(line === '') continue;
-            let numbers = line.match(/\d+/g);
-            if(numbers && numbers.length >= 4){
-                let name = line.replace(/\d+/g, '').replace(/[|,]/g, '').trim();
-                if(name.length === 0) continue;
-                if(name.includes('كلية') || name.includes('معهد') || name.length > 3){
-                    let students = parseInt(numbers[0]) || 0;
-                    let regStudents = parseInt(numbers[1]) || 0;
-                    let regCourses = parseInt(numbers[2]) || 0;
-                    let distributed = parseInt(numbers[3]) || 0;
-                    newData.push({ id: idCounter++, name: name, students: students, regStudents: regStudents, regCourses: regCourses, distributed: distributed });
-                }
-            } else if(line.includes('|')){
+
+    function parseOcrTextToArray(text) {
+        let cleaned = text.replace(/[^\u0600-\u06FF\u0750-\u077F\u08A0-\u08FFa-zA-Z0-9|\s]/g, ' ');
+        let lines = cleaned.split(/\r?\n/);
+        let data = [];
+        let idCounter = 1;
+        const numPattern = /\d+/g;
+        for (let line of lines) {
+            line = line.trim();
+            if (line.length === 0) continue;
+            if (line.includes('|')) {
                 let parts = line.split('|');
-                if(parts.length >= 5){
+                if (parts.length >= 5) {
                     let name = parts[0].trim();
                     let students = parseInt(parts[1]) || 0;
                     let regStudents = parseInt(parts[2]) || 0;
                     let regCourses = parseInt(parts[3]) || 0;
                     let distributed = parseInt(parts[4]) || 0;
-                    if(name && (name.includes('كلية') || name.includes('معهد'))){
-                        newData.push({ id: idCounter++, name: name, students: students, regStudents: regStudents, regCourses: regCourses, distributed: distributed });
+                    if (name && (name.includes('كلية') || name.includes('معهد')) && students > 0 && regCourses > 0) {
+                        data.push({ id: idCounter++, name: name, students: students, regStudents: regStudents, regCourses: regCourses, distributed: distributed });
+                        continue;
                     }
                 }
             }
+            let numbers = line.match(numPattern);
+            if (!numbers || numbers.length < 4) continue;
+            let name = line.replace(numPattern, '').replace(/[|,،؛]/g, '').trim();
+            if (name.length === 0) {
+                let words = line.split(/\s+/);
+                name = words.slice(0,2).join(' ');
+            }
+            if (!(name.includes('كلية') || name.includes('معهد')) && name.length < 5) {
+                let firstNumIndex = line.search(/\d/);
+                if (firstNumIndex > 0) name = line.substring(0, firstNumIndex).trim();
+            }
+            if (name.length === 0) continue;
+            let students = parseInt(numbers[0]) || 0;
+            let regStudents = (numbers[1]) ? parseInt(numbers[1]) : 0;
+            let regCourses = (numbers[2]) ? parseInt(numbers[2]) : 0;
+            let distributed = (numbers[3]) ? parseInt(numbers[3]) : 0;
+            if (students > 0 && regCourses > 0) {
+                data.push({ id: idCounter++, name: name, students: students, regStudents: regStudents, regCourses: regCourses, distributed: distributed });
+            }
         }
-        if(newData.length > 0){
-            colleges = newData;
-            refresh();
-            document.getElementById('ocrBox').style.display = 'none';
-            document.getElementById('ocrText').value = '';
-            document.getElementById('imagePreview').style.display = 'none';
-            showMessage(`✅ تم استيراد ${newData.length} كلية بنجاح`, '#10b981');
-        } else { showMessage('❌ لم يتم التعرف على البيانات. تأكد من أن النص يحتوي على أرقام وأسماء كليات واضحة', '#e74c3c'); }
+        return data;
     }
-    function cancelOcr(){ document.getElementById('ocrBox').style.display = 'none'; document.getElementById('ocrText').value = ''; document.getElementById('imagePreview').style.display = 'none'; }
+
+    function displayPreviewTable(data) {
+        let container = document.getElementById('previewTableContainer');
+        container.innerHTML = '';
+        let table = document.createElement('table');
+        table.style.width = '100%'; table.style.borderCollapse = 'collapse'; table.style.fontSize = '12px';
+        let thead = document.createElement('thead');
+        thead.innerHTML = `<tr style="background:#1e40af; color:white;"><th style="padding:6px;">#</th><th style="padding:6px;">الكلية</th><th style="padding:6px;">الطلاب</th><th style="padding:6px;">المسجلين</th><th style="padding:6px;">المسجلة</th><th style="padding:6px;">الموزعة</th>筹</tr>`;
+        table.appendChild(thead);
+        let tbody = document.createElement('tbody');
+        for (let i=0; i<data.length; i++) {
+            let row = data[i];
+            let tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="padding:4px; text-align:center;">${row.id}<\/td>
+                <td style="padding:4px;"><input type="text" class="preview-name" value="${row.name.replace(/"/g, '&quot;')}" data-idx="${i}" style="width:100%; padding:4px;"><\/td>
+                <td style="padding:4px;"><input type="number" class="preview-students" value="${row.students}" data-idx="${i}" style="width:80px; padding:4px;"><\/td>
+                <td style="padding:4px;"><input type="number" class="preview-regStudents" value="${row.regStudents}" data-idx="${i}" style="width:80px; padding:4px;"><\/td>
+                <td style="padding:4px;"><input type="number" class="preview-regCourses" value="${row.regCourses}" data-idx="${i}" style="width:80px; padding:4px;"><\/td>
+                <td style="padding:4px;"><input type="number" class="preview-distributed" value="${row.distributed}" data-idx="${i}" style="width:80px; padding:4px;"><\/td>
+            `;
+            tbody.appendChild(tr);
+        }
+        table.appendChild(tbody);
+        let confirmBtn = document.createElement('button');
+        confirmBtn.className = 'btn btn-primary';
+        confirmBtn.innerText = '✅ تأكيد الاستيراد إلى الجدول الرئيسي';
+        confirmBtn.style.marginTop = '10px';
+        confirmBtn.onclick = function() {
+            let newData = [];
+            let nameInputs = document.querySelectorAll('.preview-name');
+            let studentsInputs = document.querySelectorAll('.preview-students');
+            let regStudentsInputs = document.querySelectorAll('.preview-regStudents');
+            let regCoursesInputs = document.querySelectorAll('.preview-regCourses');
+            let distInputs = document.querySelectorAll('.preview-distributed');
+            for (let i=0; i<nameInputs.length; i++) {
+                newData.push({
+                    id: i+1,
+                    name: nameInputs[i].value.trim(),
+                    students: parseInt(studentsInputs[i].value) || 0,
+                    regStudents: parseInt(regStudentsInputs[i].value) || 0,
+                    regCourses: parseInt(regCoursesInputs[i].value) || 0,
+                    distributed: parseInt(distInputs[i].value) || 0
+                });
+            }
+            if (newData.length > 0) {
+                colleges = newData;
+                refresh();
+                document.getElementById('ocrBox').style.display = 'none';
+                document.getElementById('ocrText').value = '';
+                document.getElementById('imagePreview').style.display = 'none';
+                container.style.display = 'none';
+                container.innerHTML = '';
+                showMessage(`✅ تم استيراد ${newData.length} كلية بنجاح`, '#10b981');
+            } else {
+                showMessage('❌ لا توجد بيانات للاستيراد', '#e74c3c');
+            }
+        };
+        container.appendChild(table);
+        container.appendChild(confirmBtn);
+        container.style.display = 'block';
+    }
+
+    function importFromOcrText(){
+        let text = document.getElementById('ocrText').value;
+        if (!text.trim()) { showMessage('الرجاء إدخال النص أولاً', '#e74c3c'); return; }
+        let parsed = parseOcrTextToArray(text);
+        if (parsed.length > 0) {
+            displayPreviewTable(parsed);
+            showMessage(`تم تحليل النص بنجاح ووجدنا ${parsed.length} كلية. راجع البيانات في الجدول أدناه ثم اضغط تأكيد.`, '#10b981');
+        } else {
+            showMessage('لم يتم التعرف على بيانات. تأكد من أن النص يحتوي على أرقام وأسماء كليات بالصيغة: اسم الكلية | الرقم1 | الرقم2 | الرقم3 | الرقم4', '#e74c3c');
+        }
+    }
+    function cancelOcr(){ 
+        document.getElementById('ocrBox').style.display = 'none'; 
+        document.getElementById('ocrText').value = ''; 
+        document.getElementById('imagePreview').style.display = 'none'; 
+        let container = document.getElementById('previewTableContainer');
+        container.style.display = 'none';
+        container.innerHTML = '';
+    }
 
     function updateClock(){
         let now = new Date();
@@ -569,7 +674,7 @@
         document.getElementById('extractorText').innerHTML = EXTRACTOR_NAME + ' | '+d+'/'+m+'/'+y+' - '+t;
     }
 
-    // ------------------- عرض كامل (نافذة جديدة) -------------------
+    // =================== إصلاح عرض كامل مع الرسوم البيانية ===================
     function openFullPreview() {
         let now = new Date();
         let dateStr = `${now.getDate()}/${now.getMonth()+1}/${now.getFullYear()} ${now.toLocaleTimeString('en-GB',{hour12:false})}`;
@@ -577,6 +682,7 @@
         let win = window.open('', '_blank', 'width=1300,height=800,scrollbars=yes,resizable=yes');
         if(!win) { showMessage('الرجاء السماح بالنوافذ المنبثقة', '#e74c3c'); return; }
 
+        // حساب الإجماليات للـ KPIs
         let sumStu=0, sumRegStu=0, sumRegCour=0, sumDist=0;
         for(let i=0; i<currentData.length; i++){
             sumStu += currentData[i].students;
@@ -586,7 +692,36 @@
         }
         let totalP = (sumRegCour===0)?0:(sumDist/sumRegCour)*100;
         let totalNot = sumRegCour - sumDist;
-
+        
+        // بناء جدول HTML كامل (مع أعمدة)
+        let tableRows = '';
+        for(let i=0; i<currentData.length; i++){
+            let c = currentData[i];
+            let percent = getPercent(c);
+            let notDist = c.regCourses - c.distributed;
+            let fillClass = getFillClass(percent);
+            let textClass = getTextColorClass(percent);
+            let progressWidth = Math.min(percent, 100);
+            tableRows += `<tr>
+                <td style="text-align:center;">${i+1}<\/td>
+                <td style="text-align:right;">${c.name}<\/td>
+                <td style="text-align:center;">${formatNum(c.students)}<\/td>
+                <td style="text-align:center;">${formatNum(c.regStudents)}<\/td>
+                <td style="text-align:center;">${formatNum(c.regCourses)}<\/td>
+                <td style="text-align:center;">${formatNum(c.distributed)}<\/td>
+                <td class="not-dist">${formatNum(notDist)}<\/td>
+                <td style="text-align:center;">
+                    <div class="percent-wrapper">
+                        <div class="percent-bar-bg"><div class="percent-bar-fill ${fillClass}" style="width:${progressWidth}%;"></div></div>
+                        <span class="percent-text ${textClass}">${percent.toFixed(1)}%</span>
+                    </div>
+                <\/td>
+            <\/tr>`;
+        }
+        
+        let headersRow = '';
+        for(let i=0; i<headers.length; i++) headersRow += `<th>${headers[i]}</th>`;
+        
         let html = `<!DOCTYPE html>
         <html dir="rtl" lang="ar">
         <head><meta charset="UTF-8"><title>${title} - نسخة للعرض</title>
@@ -602,6 +737,7 @@
             .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:15px;margin-bottom:25px;}
             .kpi-card{background:#fff;border-radius:20px;padding:15px;border:1px solid #e2edff;text-align:center;}
             .kpi-number{font-size:32px;font-weight:800;color:#0f2b5e;font-family:monospace;}
+            .kpi-label{font-size:13px;color:#4a5b7a;margin-top:5px;}
             .charts-row{display:flex;flex-wrap:wrap;gap:25px;margin:20px 0;}
             .chart-box{flex:1;min-width:300px;background:white;padding:15px;border-radius:15px;border:1px solid #eef2f8;}
             canvas{max-height:380px;width:100%;}
@@ -623,8 +759,16 @@
             .fill-zero{background:#94a3b8;}
             .footer{text-align:center;font-size:11px;color:#5b6e8c;margin-top:20px;padding-top:15px;border-top:1px solid #e2e8f0;}
             .preview-header-card{
-                background:#f0f4f8;border-radius:20px;padding:12px 20px;margin-bottom:20px;
-                display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:15px;border-right:5px solid #1e40af;
+                background:#f0f4f8;
+                border-radius:20px;
+                padding:12px 20px;
+                margin-bottom:20px;
+                display:flex;
+                justify-content:space-between;
+                align-items:center;
+                flex-wrap:wrap;
+                gap:15px;
+                border-right:5px solid #1e40af;
             }
         <\/style>
         <\/head>
@@ -635,16 +779,17 @@
                 <div><span class="badge">جامعة بنها | الفصل الثاني 2025-2026</span><span class="extractor">${EXTRACTOR_NAME} | ${dateStr}</span></div>
             </div>
             <div class="kpi-grid">
-                <div class="kpi-card"><div class="kpi-number">${formatNum(sumStu)}</div><div class="kpi-label">اجمالي الطلاب</div></div>
-                <div class="kpi-card"><div class="kpi-number">${formatNum(sumRegStu)}</div><div class="kpi-label">اجمالي المسجلين</div></div>
-                <div class="kpi-card"><div class="kpi-number">${formatNum(sumRegCour)}</div><div class="kpi-label">المقررات المسجلة</div></div>
-                <div class="kpi-card"><div class="kpi-number">${formatNum(sumDist)}</div><div class="kpi-label">المقررات الموزعة</div></div>
-                <div class="kpi-card"><div class="kpi-number">${formatNum(totalNot)}</div><div class="kpi-label">غير الموزعة</div></div>
-                <div class="kpi-card"><div class="kpi-number">${totalP.toFixed(1)}%</div><div class="kpi-label">نسبة التوزيع الكلية</div></div>
+                <div class="kpi-card"><div class="kpi-number">${formatNum(sumStu)}<\/div><div class="kpi-label">اجمالي الطلاب</div></div>
+                <div class="kpi-card"><div class="kpi-number">${formatNum(sumRegStu)}<\/div><div class="kpi-label">اجمالي المسجلين</div></div>
+                <div class="kpi-card"><div class="kpi-number">${formatNum(sumRegCour)}<\/div><div class="kpi-label">المقررات المسجلة</div></div>
+                <div class="kpi-card"><div class="kpi-number">${formatNum(sumDist)}<\/div><div class="kpi-label">المقررات الموزعة</div></div>
+                <div class="kpi-card"><div class="kpi-number">${formatNum(totalNot)}<\/div><div class="kpi-label">غير الموزعة</div></div>
+                <div class="kpi-card"><div class="kpi-number">${totalP.toFixed(1)}%<\/div><div class="kpi-label">نسبة التوزيع الكلية</div></div>
             </div>
+            <!-- الرسوم البيانية -->
             <div class="charts-row">
-                <div class="chart-box"><h3>مقارنة المقررات المسجلة والموزعة</h3><canvas id="previewBarChart"></canvas></div>
-                <div class="chart-box"><h3>نسبة توزيع المقررات على الكليات</h3><canvas id="previewPieChart"></canvas></div>
+                <div class="chart-box"><h3>📊 مقارنة المقررات المسجلة والموزعة</h3><canvas id="previewBarChart"></canvas></div>
+                <div class="chart-box"><h3>🥧 نسبة توزيع المقررات على الكليات</h3><canvas id="previewPieChart"></canvas></div>
             </div>
             <div class="preview-header-card">
                 <span class="title-info">📌 عنوان التقرير: ${title}</span>
@@ -653,49 +798,64 @@
             </div>
             <div class="table-wrapper">
                 <table>
-                    <thead><tr>`;
-        for(let i=0; i<headers.length; i++) html += `<th>${headers[i]}</th>`;
-        html += `<\/tr><\/thead>
-                    <tbody id="previewTbody"><\/tbody>
-                    <tfoot id="previewTfoot"><\/tfoot>
+                    <thead><tr>${headersRow}<\/tr><\/thead>
+                    <tbody>${tableRows}<\/tbody>
+                    <tfoot><tr><td colspan="2"><strong>الإجمالي<\/strong><\/td><td style="text-align:center;"><strong>${formatNum(sumStu)}<\/strong><\/td><td style="text-align:center;"><strong>${formatNum(sumRegStu)}<\/strong><\/td><td style="text-align:center;"><strong>${formatNum(sumRegCour)}<\/strong><\/td><td style="text-align:center;"><strong>${formatNum(sumDist)}<\/strong><\/td><td class="not-dist"><strong>${formatNum(totalNot)}<\/strong><\/td><td style="text-align:center;"><div class="percent-wrapper"><div class="percent-bar-bg"><div class="percent-bar-fill ${getFillClass(totalP)}" style="width:${Math.min(totalP,100)}%;"><\/div><\/div><span class="percent-text ${getTextColorClass(totalP)}">${totalP.toFixed(1)}%<\/span><\/div><\/td><\/tr><\/tfoot>
                 <\/table>
             <\/div>
-            <div class="footer">* غير الموزعة = المقررات المسجلة - المقررات الموزعة<\/div>
+            <div class="footer">* غير الموزعة = المقررات المسجلة - المقررات الموزعة | هذه نسخة للعرض فقط<\/div>
         <\/div>
         <script>
-            let data = ${JSON.stringify(currentData)};
-            function fmt(n){ return n.toLocaleString('en-US'); }
-            function getP(item){ return item.regCourses===0?0:(item.distributed/item.regCourses)*100; }
-            function getFill(p){ if(p>=100)return"fill-100";if(p>=80)return"fill-high";if(p>=60)return"fill-mid";if(p>=30)return"fill-low";if(p>=1)return"fill-very-low";return"fill-zero";}
-            function getText(p){ return (p>=60)?"":"percent-text-dark";}
-            let tbody=document.getElementById('previewTbody');
-            for(let i=0;i<data.length;i++){
-                let c=data[i], p=getP(c), fc=getFill(p), tc=getText(p), notDist=c.regCourses-c.distributed, pw=Math.min(p,100);
-                tbody.insertAdjacentHTML('beforeend', '<tr><td>'+(i+1)+'</td><td style="text-align:right;">'+c.name+'</td><td>'+fmt(c.students)+'</td><td>'+fmt(c.regStudents)+'</td><td>'+fmt(c.regCourses)+'</td><td>'+fmt(c.distributed)+'</td><td class="not-dist">'+fmt(notDist)+'</td><td><div class="percent-wrapper"><div class="percent-bar-bg"><div class="percent-bar-fill '+fc+'\" style="width:'+pw+'%;"></div></div><span class="percent-text '+tc+'">'+p.toFixed(1)+'%</span></div></td></tr>');
+            // بيانات للرسوم البيانية
+            const chartData = ${JSON.stringify(currentData)};
+            // الرسم البياني الشريطي
+            const sortedBar = [...chartData].sort((a,b) => b.regCourses - a.regCourses);
+            const barCtx = document.getElementById('previewBarChart').getContext('2d');
+            new Chart(barCtx, {
+                type: 'bar',
+                data: {
+                    labels: sortedBar.map(c => c.name),
+                    datasets: [
+                        { label: 'المقررات المسجلة', data: sortedBar.map(c => c.regCourses), backgroundColor: '#3b82f6' },
+                        { label: 'المقررات الموزعة', data: sortedBar.map(c => c.distributed), backgroundColor: '#f97316' }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true } } }
+            });
+            // الرسم البياني الدائري
+            const nonZero = chartData.filter(c => c.distributed > 0);
+            let pieLabels = [], pieValues = [];
+            if (nonZero.length === 0) {
+                pieLabels = ['لا توجد مقررات موزعة'];
+                pieValues = [100];
+            } else {
+                const totalDist = chartData.reduce((s,c) => s + c.distributed, 0);
+                nonZero.forEach(c => {
+                    const perc = ((c.distributed / totalDist) * 100).toFixed(1);
+                    pieLabels.push(c.name + ' (' + perc + '%)');
+                    pieValues.push(c.distributed);
+                });
             }
-            let totalP = ${totalP}, totalFill=getFill(totalP), totalText=getText(totalP), totalPw=Math.min(totalP,100);
-            document.getElementById('previewTfoot').innerHTML = '<tr><td colspan="2"><strong>الإجمالي</strong></td><td><strong>'+fmt(${sumStu})+'</strong></td><td><strong>'+fmt(${sumRegStu})+'</strong></td><td><strong>'+fmt(${sumRegCour})+'</strong></td><td><strong>'+fmt(${sumDist})+'</strong></td><td class="not-dist"><strong>'+fmt(${totalNot})+'</strong></td><td><div class="percent-wrapper"><div class="percent-bar-bg"><div class="percent-bar-fill '+totalFill+'\" style="width:'+totalPw+'%;"></div></div><span class="percent-text '+totalText+'">'+totalP.toFixed(1)+'%</span></div></td></tr>';
-            let sorted = [...data].sort((a,b)=>b.regCourses - a.regCourses);
-            new Chart(document.getElementById('previewBarChart'), { type:'bar', data:{ labels:sorted.map(c=>c.name), datasets:[{ label:'المقررات المسجلة', data:sorted.map(c=>c.regCourses), backgroundColor:'#3b82f6' },{ label:'المقررات الموزعة', data:sorted.map(c=>c.distributed), backgroundColor:'#f97316' }] }, options:{ responsive:true, plugins:{ legend:{ position:'top' } }, scales:{ y:{ beginAtZero:true } } } });
-            let nonZero = data.filter(c=>c.distributed>0);
-            let pieLabels=[], pieValues=[];
-            if(nonZero.length===0){ pieLabels=['لا توجد مقررات موزعة']; pieValues=[100]; }
-            else{ let totalD = data.reduce((s,c)=>s+c.distributed,0);
-                nonZero.forEach(c=>{ let perc = ((c.distributed/totalD)*100).toFixed(1); pieLabels.push(c.name+' ('+perc+'%)'); pieValues.push(c.distributed); });
-            }
-            new Chart(document.getElementById('previewPieChart'), { type:'pie', data:{ labels:pieLabels, datasets:[{ data:pieValues, backgroundColor:['#2563eb','#f97316','#10b981','#8b5cf6','#f43f5e','#06b6d4','#a855f7'] }] }, options:{ responsive:true, plugins:{ legend:{ position:'right' } } } });
+            const pieCtx = document.getElementById('previewPieChart').getContext('2d');
+            new Chart(pieCtx, {
+                type: 'pie',
+                data: { labels: pieLabels, datasets: [{ data: pieValues, backgroundColor: ['#2563eb','#f97316','#10b981','#8b5cf6','#f43f5e','#06b6d4','#a855f7'] }] },
+                options: { responsive: true, plugins: { legend: { position: 'right' } } }
+            });
         <\/script>
-        <\/body><\/html>`;
+        <\/body>
+        <\/html>`;
         win.document.write(html);
         win.document.close();
-        showMessage('تم فتح نافذة العرض', '#d97706');
+        showMessage('تم فتح نافذة العرض (مع الرسوم البيانية)', '#d97706');
     }
 
-    // ------------------- تحميل نسخة HTML مستقلة -------------------
+    // =================== إصلاح تحميل نسخة HTML (مع الرسوم البيانية) ===================
     function downloadHtmlOnly() {
         let now = new Date();
         let dateStr = `${now.getDate()}/${now.getMonth()+1}/${now.getFullYear()} ${now.toLocaleTimeString('en-GB',{hour12:false})}`;
         let title = document.getElementById('reportTitle').innerText;
+        
         let sumStu=0, sumRegStu=0, sumRegCour=0, sumDist=0;
         for(let i=0; i<currentData.length; i++){
             sumStu += currentData[i].students;
@@ -705,7 +865,7 @@
         }
         let totalP = (sumRegCour===0)?0:(sumDist/sumRegCour)*100;
         let totalNot = sumRegCour - sumDist;
-
+        
         let tableRows = '';
         for(let i=0; i<currentData.length; i++){
             let c = currentData[i];
@@ -715,20 +875,25 @@
             let textClass = getTextColorClass(percent);
             let progressWidth = Math.min(percent, 100);
             tableRows += `<tr>
-                <td style="text-align:center;">${i+1}</td>
-                <td style="text-align:right;">${c.name}</td>
-                <td>${formatNum(c.students)}</td>
-                <td>${formatNum(c.regStudents)}</td>
-                <td>${formatNum(c.regCourses)}</td>
-                <td>${formatNum(c.distributed)}</td>
-                <td class="not-dist">${formatNum(notDist)}</td>
-                <td><div class="percent-wrapper"><div class="percent-bar-bg"><div class="percent-bar-fill ${fillClass}" style="width:${progressWidth}%;"></div></div><span class="percent-text ${textClass}">${percent.toFixed(1)}%</span></div></td>
-            </tr>`;
+                <td style="text-align:center;">${i+1}<\/td>
+                <td style="text-align:right;">${c.name}<\/td>
+                <td style="text-align:center;">${formatNum(c.students)}<\/td>
+                <td style="text-align:center;">${formatNum(c.regStudents)}<\/td>
+                <td style="text-align:center;">${formatNum(c.regCourses)}<\/td>
+                <td style="text-align:center;">${formatNum(c.distributed)}<\/td>
+                <td class="not-dist">${formatNum(notDist)}<\/td>
+                <td style="text-align:center;">
+                    <div class="percent-wrapper">
+                        <div class="percent-bar-bg"><div class="percent-bar-fill ${fillClass}" style="width:${progressWidth}%;"></div></div>
+                        <span class="percent-text ${textClass}">${percent.toFixed(1)}%</span>
+                    </div>
+                <\/td>
+            <\/tr>`;
         }
-        let totalFill = getFillClass(totalP);
-        let totalText = getTextColorClass(totalP);
-        let totalProgressWidth = Math.min(totalP, 100);
-
+        
+        let headersRow = '';
+        for(let i=0; i<headers.length; i++) headersRow += `<th>${headers[i]}</th>`;
+        
         let fullHtml = `<!DOCTYPE html>
         <html dir="rtl" lang="ar">
         <head><meta charset="UTF-8"><title>${title} - نسخة للعرض فقط</title>
@@ -744,6 +909,7 @@
             .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:15px;margin-bottom:25px;}
             .kpi-card{background:#fff;border-radius:20px;padding:15px;border:1px solid #e2edff;text-align:center;}
             .kpi-number{font-size:32px;font-weight:800;color:#0f2b5e;font-family:monospace;}
+            .kpi-label{font-size:13px;color:#4a5b7a;margin-top:5px;}
             .charts-row{display:flex;flex-wrap:wrap;gap:25px;margin:20px 0;}
             .chart-box{flex:1;min-width:300px;background:white;padding:15px;border-radius:15px;border:1px solid #eef2f8;}
             canvas{max-height:380px;width:100%;}
@@ -765,8 +931,16 @@
             .fill-zero{background:#94a3b8;}
             .footer{text-align:center;font-size:11px;color:#5b6e8c;margin-top:20px;padding-top:15px;border-top:1px solid #e2e8f0;}
             .preview-header-card{
-                background:#f0f4f8;border-radius:20px;padding:12px 20px;margin-bottom:20px;
-                display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:15px;border-right:5px solid #1e40af;
+                background:#f0f4f8;
+                border-radius:20px;
+                padding:12px 20px;
+                margin-bottom:20px;
+                display:flex;
+                justify-content:space-between;
+                align-items:center;
+                flex-wrap:wrap;
+                gap:15px;
+                border-right:5px solid #1e40af;
             }
         <\/style>
         <\/head>
@@ -777,16 +951,16 @@
                 <div><span class="badge">جامعة بنها | الفصل الثاني 2025-2026</span><span class="extractor">${EXTRACTOR_NAME} | ${dateStr}</span></div>
             </div>
             <div class="kpi-grid">
-                <div class="kpi-card"><div class="kpi-number">${formatNum(sumStu)}</div><div class="kpi-label">اجمالي الطلاب</div></div>
-                <div class="kpi-card"><div class="kpi-number">${formatNum(sumRegStu)}</div><div class="kpi-label">اجمالي المسجلين</div></div>
-                <div class="kpi-card"><div class="kpi-number">${formatNum(sumRegCour)}</div><div class="kpi-label">المقررات المسجلة</div></div>
-                <div class="kpi-card"><div class="kpi-number">${formatNum(sumDist)}</div><div class="kpi-label">المقررات الموزعة</div></div>
-                <div class="kpi-card"><div class="kpi-number">${formatNum(totalNot)}</div><div class="kpi-label">غير الموزعة</div></div>
-                <div class="kpi-card"><div class="kpi-number">${totalP.toFixed(1)}%</div><div class="kpi-label">نسبة التوزيع الكلية</div></div>
+                <div class="kpi-card"><div class="kpi-number">${formatNum(sumStu)}<\/div><div class="kpi-label">اجمالي الطلاب</div></div>
+                <div class="kpi-card"><div class="kpi-number">${formatNum(sumRegStu)}<\/div><div class="kpi-label">اجمالي المسجلين</div></div>
+                <div class="kpi-card"><div class="kpi-number">${formatNum(sumRegCour)}<\/div><div class="kpi-label">المقررات المسجلة</div></div>
+                <div class="kpi-card"><div class="kpi-number">${formatNum(sumDist)}<\/div><div class="kpi-label">المقررات الموزعة</div></div>
+                <div class="kpi-card"><div class="kpi-number">${formatNum(totalNot)}<\/div><div class="kpi-label">غير الموزعة</div></div>
+                <div class="kpi-card"><div class="kpi-number">${totalP.toFixed(1)}%<\/div><div class="kpi-label">نسبة التوزيع الكلية</div></div>
             </div>
             <div class="charts-row">
-                <div class="chart-box"><h3>مقارنة المقررات المسجلة والموزعة</h3><canvas id="staticBarChart"></canvas></div>
-                <div class="chart-box"><h3>نسبة توزيع المقررات على الكليات</h3><canvas id="staticPieChart"></canvas></div>
+                <div class="chart-box"><h3>📊 مقارنة المقررات المسجلة والموزعة</h3><canvas id="staticBarChart"></canvas></div>
+                <div class="chart-box"><h3>🥧 نسبة توزيع المقررات على الكليات</h3><canvas id="staticPieChart"></canvas></div>
             </div>
             <div class="preview-header-card">
                 <span class="title-info">📌 عنوان التقرير: ${title}</span>
@@ -795,35 +969,58 @@
             </div>
             <div class="table-wrapper">
                 <table>
-                    <thead><tr>`;
-        for(let i=0; i<headers.length; i++) fullHtml += `<th>${headers[i]}</th>`;
-        fullHtml += `<\/tr><\/thead>
+                    <thead><tr>${headersRow}<\/tr><\/thead>
                     <tbody>${tableRows}<\/tbody>
-                    <tfoot><tr><td colspan="2"><strong>الإجمالي<\/strong><\/td><td><strong>${formatNum(sumStu)}<\/strong><\/td><td><strong>${formatNum(sumRegStu)}<\/strong><\/td><td><strong>${formatNum(sumRegCour)}<\/strong><\/td><td><strong>${formatNum(sumDist)}<\/strong><\/td><td class="not-dist"><strong>${formatNum(totalNot)}<\/strong><\/td><td><div class="percent-wrapper"><div class="percent-bar-bg"><div class="percent-bar-fill ${totalFill}" style="width:${totalProgressWidth}%;"><\/div><\/div><span class="percent-text ${totalText}">${totalP.toFixed(1)}%<\/span><\/div><\/td><\/tr><\/tfoot>
+                    <tfoot><tr><td colspan="2"><strong>الإجمالي<\/strong><\/td><td style="text-align:center;"><strong>${formatNum(sumStu)}<\/strong><\/td><td style="text-align:center;"><strong>${formatNum(sumRegStu)}<\/strong><\/td><td style="text-align:center;"><strong>${formatNum(sumRegCour)}<\/strong><\/td><td style="text-align:center;"><strong>${formatNum(sumDist)}<\/strong><\/td><td class="not-dist"><strong>${formatNum(totalNot)}<\/strong><\/td><td style="text-align:center;"><div class="percent-wrapper"><div class="percent-bar-bg"><div class="percent-bar-fill ${getFillClass(totalP)}" style="width:${Math.min(totalP,100)}%;"><\/div><\/div><span class="percent-text ${getTextColorClass(totalP)}">${totalP.toFixed(1)}%<\/span><\/div><\/td><\/tr><\/tfoot>
                 <\/table>
             <\/div>
             <div class="footer">* غير الموزعة = المقررات المسجلة - المقررات الموزعة | هذه نسخة للعرض فقط.<\/div>
         <\/div>
         <script>
-            let staticData = ${JSON.stringify(currentData)};
-            let sortedBar = [...staticData].sort((a,b)=> b.regCourses - a.regCourses);
-            new Chart(document.getElementById('staticBarChart'), { type:'bar', data:{ labels:sortedBar.map(c=>c.name), datasets:[{ label:'المقررات المسجلة', data:sortedBar.map(c=>c.regCourses), backgroundColor:'#3b82f6' },{ label:'المقررات الموزعة', data:sortedBar.map(c=>c.distributed), backgroundColor:'#f97316' }] }, options:{ responsive:true, plugins:{ legend:{ position:'top' } }, scales:{ y:{ beginAtZero:true } } } });
-            let nonZero = staticData.filter(c=>c.distributed>0);
-            let pieLabels=[], pieValues=[];
-            if(nonZero.length===0){ pieLabels=['لا توجد مقررات موزعة']; pieValues=[100]; }
-            else{ let totalD = staticData.reduce((s,c)=>s+c.distributed,0);
-                nonZero.forEach(c=>{ let perc = ((c.distributed/totalD)*100).toFixed(1); pieLabels.push(c.name+' ('+perc+'%)'); pieValues.push(c.distributed); });
+            const staticData = ${JSON.stringify(currentData)};
+            const sortedBar = [...staticData].sort((a,b) => b.regCourses - a.regCourses);
+            const barCtx = document.getElementById('staticBarChart').getContext('2d');
+            new Chart(barCtx, {
+                type: 'bar',
+                data: {
+                    labels: sortedBar.map(c => c.name),
+                    datasets: [
+                        { label: 'المقررات المسجلة', data: sortedBar.map(c => c.regCourses), backgroundColor: '#3b82f6' },
+                        { label: 'المقررات الموزعة', data: sortedBar.map(c => c.distributed), backgroundColor: '#f97316' }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true } } }
+            });
+            const nonZero = staticData.filter(c => c.distributed > 0);
+            let pieLabels = [], pieValues = [];
+            if (nonZero.length === 0) {
+                pieLabels = ['لا توجد مقررات موزعة'];
+                pieValues = [100];
+            } else {
+                const totalDist = staticData.reduce((s,c) => s + c.distributed, 0);
+                nonZero.forEach(c => {
+                    const perc = ((c.distributed / totalDist) * 100).toFixed(1);
+                    pieLabels.push(c.name + ' (' + perc + '%)');
+                    pieValues.push(c.distributed);
+                });
             }
-            new Chart(document.getElementById('staticPieChart'), { type:'pie', data:{ labels:pieLabels, datasets:[{ data:pieValues, backgroundColor:['#2563eb','#f97316','#10b981','#8b5cf6','#f43f5e','#06b6d4','#a855f7'] }] }, options:{ responsive:true, plugins:{ legend:{ position:'right' } } } });
+            const pieCtx = document.getElementById('staticPieChart').getContext('2d');
+            new Chart(pieCtx, {
+                type: 'pie',
+                data: { labels: pieLabels, datasets: [{ data: pieValues, backgroundColor: ['#2563eb','#f97316','#10b981','#8b5cf6','#f43f5e','#06b6d4','#a855f7'] }] },
+                options: { responsive: true, plugins: { legend: { position: 'right' } } }
+            });
         <\/script>
-        <\/body><\/html>`;
+        <\/body>
+        <\/html>`;
+        
         const blob = new Blob([fullHtml], {type: 'text/html'});
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
         link.download = `dashboard_viewonly_${new Date().toISOString().slice(0,19)}.html`;
         link.click();
         URL.revokeObjectURL(link.href);
-        showMessage('تم تحميل نسخة HTML للعرض فقط', '#0891b2');
+        showMessage('تم تحميل نسخة HTML للعرض فقط (مع الرسوم البيانية)', '#0891b2');
     }
 
     // ربط الأزرار
@@ -855,7 +1052,7 @@
     updateHeadersDisplay();
     updateClock();
     setInterval(updateClock, 1000);
-    showMessage('✅ جميع الوظائف تعمل بكفاءة (عرض كامل + تحميل HTML)', '#1e40af');
+    showMessage('✅ تم إصلاح عرض كامل وتحميل HTML - جميع الرسوم البيانية والجداول تعمل', '#1e40af');
 })();
 </script>
 </body>
