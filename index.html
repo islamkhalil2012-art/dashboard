@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberGuard AI | فاحص الأمان المؤسسي</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Cairo', sans-serif; }
+        body { background-color: #0b1220; color: #f8fafc; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+        .container { width: 100%; max-width: 650px; background: #1e293b; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); border: 1px solid #334155; }
+        h1 { font-size: 24px; margin-bottom: 8px; color: #38bdf8; text-align: center; }
+        p.sub { font-size: 14px; color: #94a3b8; text-align: center; margin-bottom: 24px; }
+        .form-group { margin-bottom: 16px; }
+        label { display: block; font-size: 13px; margin-bottom: 6px; color: #cbd5e1; }
+        input, select { width: 100%; padding: 12px; background: #0f172a; border: 1px solid #475569; color: #fff; border-radius: 8px; font-size: 14px; }
+        input:focus, select:focus { outline: none; border-color: #38bdf8; }
+        button { width: 100%; padding: 12px; background: #0284c7; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; transition: background 0.2s; margin-top: 10px; }
+        button:hover { background: #0369a1; }
+        #loading { display: none; text-align: center; margin-top: 20px; color: #38bdf8; font-size: 14px; }
+        #result-box { display: none; margin-top: 25px; background: #0f172a; padding: 20px; border-radius: 8px; border: 1px solid #334155; }
+        .score { font-size: 28px; font-weight: bold; color: #4ade80; text-align: center; margin-bottom: 10px; }
+        .btn-pdf { display: inline-block; background: #16a34a; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; text-align: center; width: 100%; margin-top: 15px; font-weight: 600; }
+        .btn-pdf:hover { background: #15803d; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CyberGuard AI</h1>
+        <p class="sub">محرك التدقيق الأمني المؤسسي وحماية المواقع</p>
+        
+        <div class="form-group">
+            <label>رابط الموقع المستهدف (مملوك لك):</label>
+            <input type="url" id="targetUrl" placeholder="https://example.com" required>
+        </div>
+        
+        <div class="form-group">
+            <label>وضع الفحص:</label>
+            <select id="scanMode">
+                <option value="external">فحص خارجي عام (External)</option>
+                <option value="authenticated">فحص داخلي مُصادَق عليه (Authenticated)</option>
+            </select>
+        </div>
+
+        <button onclick="startScan()">بدء الفحص الأمني الشامل</button>
+        
+        <div id="loading">جاري تنفيذ الفحص الأمني عبر السيرفر، يرجى الانتظار...</div>
+        
+        <div id="result-box">
+            <div id="scoreDisplay" class="score"></div>
+            <div id="detailsDisplay"></div>
+            <a id="pdfLink" href="#" target="_blank" class="btn-pdf">تحميل التقرير التنفيذي (PDF)</a>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "https://dashboard-m5fl.onrender.com";
+        const API_KEY = "cyber_guard_sec_key_2026_x9";
+
+        async function startScan() {
+            const url = document.getElementById('targetUrl').value;
+            const mode = document.getElementById('scanMode').value;
+            if(!url) { alert("يرجى إدخال الرابط أولاً"); return; }
+
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('result-box').style.display = 'none';
+
+            try {
+                const startResp = await fetch(`${API_BASE}/api/v1/scan/enterprise/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
+                    body: JSON.stringify({ target_url: url, scan_mode: mode })
+                });
+                
+                if(!startResp.ok) throw new Error("فشل بدء الاتصال بالسيرفر.");
+                const startData = await startResp.json();
+                const scanId = startData.scan_id;
+
+                let status = "queued";
+                while(status !== "completed" && status !== "failed") {
+                    await new Promise(r => setTimeout(r, 3000));
+                    const statusResp = await fetch(`${API_BASE}/api/v1/scan/enterprise/status/${scanId}`, {
+                        headers: { 'X-API-Key': API_KEY }
+                    });
+                    const statusData = await statusResp.json();
+                    status = statusData.status;
+                    
+                    if(status === "completed") {
+                        document.getElementById('loading').style.display = 'none';
+                        document.getElementById('result-box').style.display = 'block';
+                        document.getElementById('scoreDisplay').innerHTML = `درجة الأمان: ${statusData.security_score} / 100`;
+                        document.getElementById('detailsDisplay').innerHTML = `إجمالي الفحوصات: ${statusData.findings_count} | المشاكل المكتشفة: ${statusData.failed_checks.length}`;
+                        document.getElementById('pdfLink').href = `${API_BASE}/api/v1/scan/enterprise/report/pdf/${scanId}?api_key=${API_KEY}`;
+                    }
+                }
+            } catch (err) {
+                document.getElementById('loading').style.display = 'none';
+                alert("حدث خطأ أثناء الاتصال: " + err.message);
+            }
+        }
+    </script>
+</body>
+</html>
