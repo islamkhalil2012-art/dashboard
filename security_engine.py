@@ -5,7 +5,7 @@ from pydantic import BaseModel
 import uuid
 import requests
 
-app = FastAPI(title="CyberGuard AI Engine", version="3.0.0")
+app = FastAPI(title="CyberGuard AI Engine", version="4.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -38,8 +38,8 @@ def start_scan(request: ScanRequest, api_key: str = Depends(verify_api_key)):
     score = 100
 
     try:
-        # 1. فحص الترويسات الأمنية الأساسية
-        response = requests.get(target, timeout=10, verify=True, headers={"User-Agent": "CyberGuard-AI-Scanner/3.0"})
+        # 1. فحص الترويسات الأمنية الأساسية (كما هي بدون تغيير)
+        response = requests.get(target, timeout=10, verify=True, headers={"User-Agent": "CyberGuard-AI-Scanner/4.0"})
         headers = response.headers
 
         if 'Strict-Transport-Security' not in headers:
@@ -58,7 +58,7 @@ def start_scan(request: ScanRequest, api_key: str = Depends(verify_api_key)):
             failed_checks.append(f"Server Information Disclosure: Server: {headers['Server']}")
             score -= 10
 
-        # 2. فحص محاكاة الملفات الحساسة المكشوفة (خطورة تسريب بيانات أو إعدادات)
+        # 2. فحص الملفات الحساسة (كما هي بدون تغيير)
         sensitive_paths = ["/.env", "/config.json", "/backup.sql", "/admin/login"]
         exposed_paths = []
         for path in sensitive_paths:
@@ -75,6 +75,25 @@ def start_scan(request: ScanRequest, api_key: str = Depends(verify_api_key)):
             score -= 30
         else:
             failed_checks.append("Pass: No critical sensitive configuration files (.env, backup.sql) publicly exposed.")
+
+        # 3. الإضافة الجديدة: فحص أمان نقاط الـ API الشائعة (بدون التأثير على النتائج السابقة)
+        api_endpoints = ["/api/v1/users", "/api/v1/admin", "/api/v1/config"]
+        unprotected_apis = []
+        for endpoint in api_endpoints:
+            try:
+                api_url = target + endpoint
+                api_res = requests.get(api_url, timeout=3, verify=True)
+                # إذا كانت النقطة تستجيب بـ 200 وتُرجع محتوى JSON أو بيانات بدون توجيه لتسجيل الدخول
+                if api_res.status_code == 200 and ('application/json' in api_res.headers.get('Content-Type', '') or len(api_res.text) > 50):
+                    unprotected_apis.append(endpoint)
+            except:
+                pass
+
+        if unprotected_apis:
+            failed_checks.append(f"Warning: Potential unauthenticated API endpoints detected: {', '.join(unprotected_apis)}")
+            score -= 10
+        else:
+            failed_checks.append("Pass: Standard API endpoints are properly guarded or not publicly listed.")
 
         if score < 10:
             score = 10
@@ -108,7 +127,7 @@ def get_pdf_report(scan_id: str, api_key: str):
         raise HTTPException(status_code=404, detail="Scan not found")
     
     scan_info = scan_database[scan_id]
-    pdf_filename = f"CyberGuard_Advanced_Report_{scan_id[:8]}.pdf"
+    pdf_filename = f"CyberGuard_Enterprise_Report_{scan_id[:8]}.pdf"
     
     try:
         from reportlab.lib.pagesizes import letter
@@ -119,7 +138,7 @@ def get_pdf_report(scan_id: str, api_key: str):
         
         # رأسية التقرير
         c.setFont("Helvetica-Bold", 18)
-        c.drawString(50, height - 40, "CyberGuard AI - Advanced Security & Leak Audit")
+        c.drawString(50, height - 40, "CyberGuard AI - Enterprise Security & API Audit")
         
         c.setFont("Helvetica", 11)
         c.drawString(50, height - 70, f"Target URL: {scan_info['target_url']}")
@@ -128,7 +147,7 @@ def get_pdf_report(scan_id: str, api_key: str):
         c.drawString(50, height - 130, f"Total Findings & Checks: {scan_info['findings_count']}")
         
         c.setFont("Helvetica-Bold", 13)
-        c.drawString(50, height - 170, "Audit Results & Vulnerability Analysis:")
+        c.drawString(50, height - 170, "Comprehensive Audit Results:")
         
         c.setFont("Helvetica", 10)
         y_pos = height - 195
