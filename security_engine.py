@@ -4,8 +4,9 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import uuid
 import requests
+from bs4 import BeautifulSoup
 
-app = FastAPI(title="CyberGuard AI Engine", version="6.0.0")
+app = FastAPI(title="CyberGuard AI Engine", version="7.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -40,7 +41,7 @@ def start_scan(request: ScanRequest, api_key: str = Depends(verify_api_key)):
 
     try:
         # 1. فحص الترويسات الأمنية الأساسية
-        response = requests.get(target, timeout=10, verify=True, headers={"User-Agent": "CyberGuard-AI-Scanner/6.0"})
+        response = requests.get(target, timeout=10, verify=True, headers={"User-Agent": "CyberGuard-AI-Scanner/7.0"})
         headers = response.headers
 
         if 'Strict-Transport-Security' not in headers:
@@ -77,15 +78,13 @@ def start_scan(request: ScanRequest, api_key: str = Depends(verify_api_key)):
         else:
             failed_checks.append("Pass: No critical sensitive configuration files (.env, backup.sql) publicly exposed.")
 
-        # 3. الفحص المتقدم المخصص لنظام ابن الهيثم ومحاولة استخراج عينات البيانات (PoC Extraction)
-        # استهداف المسارات المحتملة للتقارير والبيانات وجداول المستخدمين
+        # 3. الفحص المتقدم وتفريغ محتوى الجداول الحقيقية (HTML Table Parsing & Data Extraction)
         base_domain = target.split('/Admin/')[0] if '/Admin/' in target else target
         ibn_endpoints = [
             "/Admin/IbnAlHaithamReports",
             "/api/v1/students",
             "/api/reports/data",
             "/Admin/GetReportsData",
-            "/api/v1/users",
             "/Home/GetStudentData"
         ]
         
@@ -93,26 +92,45 @@ def start_scan(request: ScanRequest, api_key: str = Depends(verify_api_key)):
         for endpoint in ibn_endpoints:
             try:
                 api_url = base_domain + endpoint if endpoint.startswith('/') else base_domain + '/' + endpoint
-                api_res = requests.get(api_url, timeout=5, verify=True, headers={"User-Agent": "CyberGuard-PenTest-Engine/6.0"})
+                api_res = requests.get(api_url, timeout=6, verify=True, headers={"User-Agent": "CyberGuard-DataExtractor/7.0"})
                 
-                # التحقق مما إذا كانت الصفحة أو نقطة النهاية تُرجع بيانات (حتى لو كانت HTML تحتوي على جداول بيانات أو JSON)
                 if api_res.status_code == 200:
-                    content_type = api_res.headers.get('Content-Type', '')
                     body_text = api_res.text
+                    content_type = api_res.headers.get('Content-Type', '')
                     
-                    # إذا كانت الاستجابة تحتوي على محتوى جوهري أو بيانات طلاب/تقارير مكشوفة
-                    if len(body_text) > 150 and ("table" in body_text.lower() or "student" in body_text.lower() or "json" in content_type or "id" in body_text.lower()):
+                    # استخدام BeautifulSoup لتحليل الصفحة واستخراج البيانات الفعلية من الجداول أو النصوص التنظيمية
+                    soup = BeautifulSoup(body_text, 'html.parser')
+                    
+                    # البحث عن أي جداول بيانات (Tables) داخل الصفحة
+                    tables = soup.find_all('table')
+                    if tables:
                         unprotected_apis.append(endpoint)
-                        snippet = body_text[:150].replace('\n', ' ').strip()
-                        extracted_data_samples.append(f"Extracted from {endpoint}: {snippet}...")
+                        for t_idx, table in enumerate(tables):
+                            rows = table.find_all('tr')
+                            row_count = len(rows)
+                            # استخراج عينة من صفوف الجدول (مثل اسماء الأعمدة أو أول صفين من البيانات)
+                            sample_rows = []
+                            for r in rows[:3]:  # أول 3 صفوف كعينة حقيقية
+                                cols = [c.get_text(strip=True) for c in r.find_all(['th', 'td']) if c.get_text(strip=True)]
+                                if cols:
+                                    sample_rows.append(" | ".join(cols))
+                            
+                            snippet = f"Table [{t_idx+1}] Rows: {row_count} | Sample: " + " -- ".join(sample_rows)
+                            extracted_data_samples.append(f"Table Data from {endpoint}: {snippet[:180]}...")
+                    
+                    elif len(body_text) > 200 and ('json' in content_type or 'student' in body_text.lower() or 'report' in body_text.lower()):
+                        unprotected_apis.append(endpoint)
+                        # استخراج النصوص الصافية بدون أكواد الـ HTML
+                        clean_text = soup.get_text(separator=' ', strip=True)
+                        extracted_data_samples.append(f"Text Data from {endpoint}: {clean_text[:140]}...")
             except:
                 pass
 
         if unprotected_apis:
-            failed_checks.append(f"Vulnerability: Exposed Endpoints returning data without strict auth: {', '.join(unprotected_apis)}")
+            failed_checks.append(f"Vulnerability: Endpoints exposing raw data / tables without auth: {', '.join(unprotected_apis)}")
             score -= 35
         else:
-            failed_checks.append("Pass: Ibn Al-Haitham report endpoints are strictly guarded.")
+            failed_checks.append("Pass: Report and table endpoints are strictly guarded.")
 
         if score < 10:
             score = 10
@@ -147,7 +165,7 @@ def get_pdf_report(scan_id: str, api_key: str):
         raise HTTPException(status_code=404, detail="Scan not found")
     
     scan_info = scan_database[scan_id]
-    pdf_filename = f"CyberGuard_Exploit_PoC_{scan_id[:8]}.pdf"
+    pdf_filename = f"CyberGuard_Extracted_Data_{scan_id[:8]}.pdf"
     
     try:
         from reportlab.lib.pagesizes import letter
@@ -157,48 +175,48 @@ def get_pdf_report(scan_id: str, api_key: str):
         width, height = letter
         
         # رأسية التقرير
-        c.setFont("Helvetica-Bold", 16)
-        c.drawString(40, height - 35, "CyberGuard AI - Advanced Exploit & Data Extraction PoC")
-        
-        c.setFont("Helvetica", 10)
-        c.drawString(40, height - 60, f"Target URL: {scan_info['target_url']}")
-        c.drawString(40, height - 78, f"Scan Mode: {scan_info['scan_mode']}")
-        c.drawString(40, height - 96, f"Security Score: {scan_info['security_score']} / 100")
-        c.drawString(40, height - 114, f"Total Findings & Extractions: {scan_info['findings_count']}")
-        
-        # النتائج الشاملة
-        c.setFont("Helvetica-Bold", 12)
-        c.drawString(40, height - 145, "Vulnerability Assessment Results:")
+        c.setFont("Helvetica-Bold", 15)
+        c.drawString(35, height - 35, "CyberGuard AI - Real Table & Data Extraction Report")
         
         c.setFont("Helvetica", 9)
-        y_pos = height - 165
+        c.drawString(35, height - 58, f"Target URL: {scan_info['target_url']}")
+        c.drawString(35, height - 74, f"Scan Mode: {scan_info['scan_mode']}")
+        c.drawString(35, height - 90, f"Security Score: {scan_info['security_score']} / 100")
+        c.drawString(35, height - 106, f"Total Findings & Extractions: {scan_info['findings_count']}")
+        
+        # النتائج الشاملة
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(35, height - 135, "Vulnerability Assessment Results:")
+        
+        c.setFont("Helvetica", 8)
+        y_pos = height - 152
         for check in scan_info['failed_checks']:
-            if y_pos < 100:
+            if y_pos < 90:
                 c.showPage()
                 y_pos = height - 40
-            c.drawString(55, y_pos, f"- {check}")
-            y_pos -= 18
+            c.drawString(45, y_pos, f"- {check}")
+            y_pos -= 16
 
-        # قسم عينات البيانات المستخرجة (PoC Data Samples)
+        # قسم تفريغ بيانات الجداول الحقيقية (Extracted Table Data)
         if scan_info.get('extracted_data_samples'):
-            if y_pos < 120:
+            if y_pos < 110:
                 c.showPage()
                 y_pos = height - 40
-            y_pos -= 10
-            c.setFont("Helvetica-Bold", 12)
-            c.drawString(40, y_pos, "Proof of Concept (PoC) - Extracted Data Snippets:")
-            y_pos -= 20
-            c.setFont("Helvetica", 8)
+            y_pos -= 8
+            c.setFont("Helvetica-Bold", 11)
+            c.drawString(35, y_pos, "Extracted Table Records & Student Data Samples:")
+            y_pos -= 18
+            c.setFont("Helvetica", 7)
             for sample in scan_info['extracted_data_samples']:
-                if y_pos < 60:
+                if y_pos < 55:
                     c.showPage()
                     y_pos = height - 40
-                c.drawString(55, y_pos, f"> {sample}")
-                y_pos -= 16
+                c.drawString(45, y_pos, f">> {sample}")
+                y_pos -= 15
             
         # بصمة المطور
         c.setFont("Helvetica-Oblique", 8)
-        c.drawString(40, 25, "Developed by khmm - CyberGuard AI Systems")
+        c.drawString(35, 20, "Developed by khmm - CyberGuard AI Systems")
         
         c.save()
     except Exception as e:
