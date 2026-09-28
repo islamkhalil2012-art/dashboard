@@ -5,7 +5,7 @@ from pydantic import BaseModel
 import uuid
 import requests
 
-app = FastAPI(title="CyberGuard AI Engine", version="4.0.0")
+app = FastAPI(title="CyberGuard AI Engine", version="5.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -35,11 +35,12 @@ def start_scan(request: ScanRequest, api_key: str = Depends(verify_api_key)):
         target = "https://" + target
 
     failed_checks = []
+    extracted_data_samples = []
     score = 100
 
     try:
-        # 1. فحص الترويسات الأمنية الأساسية (كما هي بدون تغيير)
-        response = requests.get(target, timeout=10, verify=True, headers={"User-Agent": "CyberGuard-AI-Scanner/4.0"})
+        # 1. فحص الترويسات الأمنية الأساسية
+        response = requests.get(target, timeout=10, verify=True, headers={"User-Agent": "CyberGuard-AI-Scanner/5.0"})
         headers = response.headers
 
         if 'Strict-Transport-Security' not in headers:
@@ -58,8 +59,8 @@ def start_scan(request: ScanRequest, api_key: str = Depends(verify_api_key)):
             failed_checks.append(f"Server Information Disclosure: Server: {headers['Server']}")
             score -= 10
 
-        # 2. فحص الملفات الحساسة (كما هي بدون تغيير)
-        sensitive_paths = ["/.env", "/config.json", "/backup.sql", "/admin/login"]
+        # 2. فحص الملفات الحساسة
+        sensitive_paths = ["/.env", "/config.json", "/backup.sql"]
         exposed_paths = []
         for path in sensitive_paths:
             try:
@@ -76,24 +77,27 @@ def start_scan(request: ScanRequest, api_key: str = Depends(verify_api_key)):
         else:
             failed_checks.append("Pass: No critical sensitive configuration files (.env, backup.sql) publicly exposed.")
 
-        # 3. الإضافة الجديدة: فحص أمان نقاط الـ API الشائعة (بدون التأثير على النتائج السابقة)
+        # 3. الفحص المتقدم ونقاط الـ API مع التقاط عينات البيانات المستخرجة (PoC)
         api_endpoints = ["/api/v1/users", "/api/v1/admin", "/api/v1/config"]
         unprotected_apis = []
         for endpoint in api_endpoints:
             try:
                 api_url = target + endpoint
-                api_res = requests.get(api_url, timeout=3, verify=True)
-                # إذا كانت النقطة تستجيب بـ 200 وتُرجع محتوى JSON أو بيانات بدون توجيه لتسجيل الدخول
-                if api_res.status_code == 200 and ('application/json' in api_res.headers.get('Content-Type', '') or len(api_res.text) > 50):
+                api_res = requests.get(api_url, timeout=4, verify=True)
+                # إذا استجابت الـ API بنجاح وأرجعت بيانات حقيقية (JSON)
+                if api_res.status_code == 200 and 'application/json' in api_res.headers.get('Content-Type', ''):
                     unprotected_apis.append(endpoint)
+                    # حفظ مقتطف مختصر من البيانات المستخرجة كدليل فحص
+                    snippet = api_res.text[:120].replace('\n', ' ')
+                    extracted_data_samples.append(f"Data Extracted from {endpoint}: {snippet}...")
             except:
                 pass
 
         if unprotected_apis:
-            failed_checks.append(f"Warning: Potential unauthenticated API endpoints detected: {', '.join(unprotected_apis)}")
-            score -= 10
+            failed_checks.append(f"Vulnerability: Unprotected API Endpoints exposing data: {', '.join(unprotected_apis)}")
+            score -= 25
         else:
-            failed_checks.append("Pass: Standard API endpoints are properly guarded or not publicly listed.")
+            failed_checks.append("Pass: Standard API endpoints are properly guarded.")
 
         if score < 10:
             score = 10
@@ -108,8 +112,9 @@ def start_scan(request: ScanRequest, api_key: str = Depends(verify_api_key)):
         "target_url": target,
         "scan_mode": request.scan_mode,
         "security_score": score,
-        "findings_count": len(failed_checks),
-        "failed_checks": failed_checks
+        "findings_count": len(failed_checks) + len(extracted_data_samples),
+        "failed_checks": failed_checks,
+        "extracted_data_samples": extracted_data_samples
     }
     return {"scan_id": scan_id, "status": "queued"}
 
@@ -127,7 +132,7 @@ def get_pdf_report(scan_id: str, api_key: str):
         raise HTTPException(status_code=404, detail="Scan not found")
     
     scan_info = scan_database[scan_id]
-    pdf_filename = f"CyberGuard_Enterprise_Report_{scan_id[:8]}.pdf"
+    pdf_filename = f"CyberGuard_PoC_Report_{scan_id[:8]}.pdf"
     
     try:
         from reportlab.lib.pagesizes import letter
@@ -137,30 +142,48 @@ def get_pdf_report(scan_id: str, api_key: str):
         width, height = letter
         
         # رأسية التقرير
-        c.setFont("Helvetica-Bold", 18)
-        c.drawString(50, height - 40, "CyberGuard AI - Enterprise Security & API Audit")
-        
-        c.setFont("Helvetica", 11)
-        c.drawString(50, height - 70, f"Target URL: {scan_info['target_url']}")
-        c.drawString(50, height - 90, f"Scan Mode: {scan_info['scan_mode']}")
-        c.drawString(50, height - 110, f"Security Score: {scan_info['security_score']} / 100")
-        c.drawString(50, height - 130, f"Total Findings & Checks: {scan_info['findings_count']}")
-        
-        c.setFont("Helvetica-Bold", 13)
-        c.drawString(50, height - 170, "Comprehensive Audit Results:")
+        c.setFont("Helvetica-Bold", 16)
+        c.drawString(40, height - 35, "CyberGuard AI - Security Audit & PoC Data Report")
         
         c.setFont("Helvetica", 10)
-        y_pos = height - 195
+        c.drawString(40, height - 60, f"Target URL: {scan_info['target_url']}")
+        c.drawString(40, height - 78, f"Scan Mode: {scan_info['scan_mode']}")
+        c.drawString(40, height - 96, f"Security Score: {scan_info['security_score']} / 100")
+        c.drawString(40, height - 114, f"Total Findings: {scan_info['findings_count']}")
+        
+        # النتائج الشاملة
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(40, height - 145, "Audit & Vulnerability Results:")
+        
+        c.setFont("Helvetica", 9)
+        y_pos = height - 165
         for check in scan_info['failed_checks']:
-            if y_pos < 80:
+            if y_pos < 100:
                 c.showPage()
-                y_pos = height - 50
-            c.drawString(70, y_pos, f"- {check}")
-            y_pos -= 22
+                y_pos = height - 40
+            c.drawString(55, y_pos, f"- {check}")
+            y_pos -= 18
+
+        # قسم أدلة استخراج البيانات (PoC Samples)
+        if scan_info.get('extracted_data_samples'):
+            if y_pos < 120:
+                c.showPage()
+                y_pos = height - 40
+            y_pos -= 10
+            c.setFont("Helvetica-Bold", 12)
+            c.drawString(40, y_pos, "Proof of Concept (PoC) - Extracted Data Samples:")
+            y_pos -= 20
+            c.setFont("Helvetica", 8)
+            for sample in scan_info['extracted_data_samples']:
+                if y_pos < 60:
+                    c.showPage()
+                    y_pos = height - 40
+                c.drawString(55, y_pos, f"> {sample}")
+                y_pos -= 16
             
         # بصمة المطور
-        c.setFont("Helvetica-Oblique", 9)
-        c.drawString(50, 30, "Developed by khmm - CyberGuard AI Systems")
+        c.setFont("Helvetica-Oblique", 8)
+        c.drawString(40, 25, "Developed by khmm - CyberGuard AI Systems")
         
         c.save()
     except Exception as e:
